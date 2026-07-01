@@ -4,7 +4,7 @@ WORKDIR /app
 COPY pubspec.yaml ./
 RUN flutter pub get
 COPY . .
-RUN flutter build web --release --pwa-strategy=offline-first
+RUN flutter build web --release
 
 # Stage 2: Serve with nginx
 FROM nginx:alpine
