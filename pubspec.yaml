@@ -22,9 +22,6 @@ dependencies:
   # Navigation
   go_router: ^13.2.0
   
-  # UI
-  material_color_utilities: ^0.13.0
-  
   # JWT decode
   jwt_decoder: ^2.0.1
   

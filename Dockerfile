@@ -1,5 +1,5 @@
 # Stage 1: Build Flutter web
-FROM ghcr.io/cirruslabs/flutter:stable AS builder
+FROM ghcr.io/cirruslabs/flutter:3.19.0 AS builder
 WORKDIR /app
 COPY pubspec.yaml ./
 RUN flutter pub get
