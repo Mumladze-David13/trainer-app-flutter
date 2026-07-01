@@ -6,7 +6,9 @@ import '../models/models.dart';
 import '../models/chat_models.dart';
 import '../models/nutrition_models.dart';
 
-const String baseUrl = 'http://144.31.189.154:8080/api';
+const String baseUrl = kIsWeb
+    ? 'https://swell-haste-lucrative.ngrok-free.dev/api'
+    : 'http://144.31.189.154:8080/api';
 
 class ApiService {
   late final Dio _dio;
@@ -16,6 +18,9 @@ class ApiService {
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
+      headers: {
+        if (kIsWeb) 'ngrok-skip-browser-warning': 'true',
+      },
     ));
 
     _dio.interceptors.add(InterceptorsWrapper(
@@ -308,14 +313,14 @@ class ApiService {
   }
 
   Future<FoodItem> updateFoodItem(
-    String id, {
-    String? name,
-    double? caloriesPer100g,
-    double? proteinPer100g,
-    double? carbsPer100g,
-    double? fatPer100g,
-    String? category,
-  }) async {
+      String id, {
+        String? name,
+        double? caloriesPer100g,
+        double? proteinPer100g,
+        double? carbsPer100g,
+        double? fatPer100g,
+        String? category,
+      }) async {
     final res = await _dio.patch('/nutrition/food/$id', data: {
       if (name != null) 'name': name,
       if (caloriesPer100g != null) 'caloriesPer100g': caloriesPer100g,
@@ -474,11 +479,11 @@ class ApiService {
   }
 
   Future<ClientActivity> updateClientActivity(
-    String id, {
-    required String name,
-    double? metValue,
-    String? description,
-  }) async {
+      String id, {
+        required String name,
+        double? metValue,
+        String? description,
+      }) async {
     final res = await _dio.put('/client-activities/$id', data: {
       'name': name,
       if (metValue != null) 'metValue': metValue,
@@ -495,7 +500,7 @@ class ApiService {
   Future<List<ClientActivity>> getTrainerClientActivities(
       String clientId) async {
     final res =
-        await _dio.get('/client-activities/trainer/client/$clientId');
+    await _dio.get('/client-activities/trainer/client/$clientId');
     return (res.data as List).map((e) => ClientActivity.fromJson(e)).toList();
   }
 
