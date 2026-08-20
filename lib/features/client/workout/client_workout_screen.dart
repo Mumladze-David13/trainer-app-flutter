@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../core/models/models.dart';
 import '../../../core/models/pose_analysis.dart';
 import '../../../core/services/auth_provider.dart';
+import '../../../core/widgets/exercise_thumbnail.dart';
 import '../../ai/pose_analysis_screen.dart';
 
 class ClientWorkoutScreen extends StatefulWidget {
@@ -324,6 +325,10 @@ class _ClientWorkoutScreenState extends State<ClientWorkoutScreen> {
               },
               activeColor: Colors.green,
             ),
+            Padding(
+              padding: const EdgeInsets.only(right: 8, top: 2),
+              child: ExerciseThumbnail(imageUrl: we.exercise.imageUrl),
+            ),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -464,6 +469,10 @@ class _ClientWorkoutScreenState extends State<ClientWorkoutScreen> {
                           });
                         },
                         activeColor: Colors.green,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8, top: 2),
+                        child: ExerciseThumbnail(imageUrl: we.exercise.imageUrl),
                       ),
                       Expanded(
                         child: Column(

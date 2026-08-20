@@ -545,6 +545,89 @@ class _SeasonCardState extends State<_SeasonCard> {
     _expanded = widget.isExpanded;
   }
 
+  Future<void> _editStartDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: widget.season.startDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked == null || !mounted) return;
+    final api = context.read<AuthProvider>().api;
+    try {
+      await api.updateSeason(widget.clientId, widget.season.id,
+          startDate: picked.toIso8601String());
+      widget.onReload();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Не удалось изменить дату сезона')));
+      }
+    }
+  }
+
+  Future<void> _deleteSeason() async {
+    final s = widget.season;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Удалить сезон?'),
+        content: Text(
+            'Удалить "${s.name}" вместе со всеми занятиями (${s.workouts.length})? '
+            'Это действие нельзя отменить.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Отмена')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Удалить', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    final api = context.read<AuthProvider>().api;
+    try {
+      await api.deleteSeason(widget.clientId, s.id);
+      widget.onReload();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Не удалось удалить сезон')));
+      }
+    }
+  }
+
+  Future<void> _deleteWorkout(Workout w) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Удалить занятие?'),
+        content: Text(
+            'Удалить занятие от ${widget.fmt.format(w.date)}? Это действие нельзя отменить.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Отмена')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Удалить', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    final api = context.read<AuthProvider>().api;
+    try {
+      await api.deleteWorkout(w.id);
+      widget.onReload();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Не удалось удалить занятие')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = widget.season;
@@ -563,11 +646,27 @@ class _SeasonCardState extends State<_SeasonCard> {
               style: TextStyle(
                   color: isAtLimit ? Colors.orange : Colors.green),
             ),
-            trailing: IconButton(
-              icon: Icon(
-                  _expanded ? Icons.expand_less : Icons.expand_more),
-              onPressed: () =>
-                  setState(() => _expanded = !_expanded),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit_calendar, size: 20),
+                  tooltip: 'Изменить дату сезона',
+                  onPressed: _editStartDate,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline,
+                      size: 20, color: Colors.red),
+                  tooltip: 'Удалить сезон',
+                  onPressed: _deleteSeason,
+                ),
+                IconButton(
+                  icon: Icon(
+                      _expanded ? Icons.expand_less : Icons.expand_more),
+                  onPressed: () =>
+                      setState(() => _expanded = !_expanded),
+                ),
+              ],
             ),
             onTap: () => setState(() => _expanded = !_expanded),
           ),
@@ -642,7 +741,18 @@ class _SeasonCardState extends State<_SeasonCard> {
                             title: Text(widget.fmt.format(w.date)),
                             subtitle: Text(
                                 '${w.workoutExercises.length} упр.${w.isCompleted ? " · выполнено" : ""}'),
-                            trailing: const Icon(Icons.chevron_right),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline,
+                                      size: 20, color: Colors.red),
+                                  tooltip: 'Удалить занятие',
+                                  onPressed: () => _deleteWorkout(w),
+                                ),
+                                const Icon(Icons.chevron_right),
+                              ],
+                            ),
                             onTap: () async {
                               final result =
                                   await Navigator.of(context).push(

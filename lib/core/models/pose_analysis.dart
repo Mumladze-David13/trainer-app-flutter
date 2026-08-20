@@ -8,6 +8,10 @@ class PoseAnalysisResult {
   final String phase;
   final int repCount;
   final Map<String, double> angles;
+  // Raw, uncalibrated measurements (e.g. heel lift, knee-over-toe) that
+  // aren't scored yet — collected so real thresholds can be picked later
+  // from logged data instead of guessed upfront.
+  final Map<String, double> calibrationMetrics;
 
   PoseAnalysisResult({
     required this.exerciseType,
@@ -17,7 +21,24 @@ class PoseAnalysisResult {
     required this.phase,
     required this.repCount,
     required this.angles,
+    this.calibrationMetrics = const {},
   });
+}
+
+/// Camera placement relative to the person, chosen manually by the user —
+/// some checks (knee valgus, left/right symmetry, stance width) need both
+/// legs visible from the front, others (depth, torso lean) work side-on.
+enum CameraViewMode { side, front }
+
+extension CameraViewModeExtension on CameraViewMode {
+  String get nameRu {
+    switch (this) {
+      case CameraViewMode.side:
+        return 'Сбоку';
+      case CameraViewMode.front:
+        return 'Спереди';
+    }
+  }
 }
 
 enum SupportedExercise {

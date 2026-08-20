@@ -2,8 +2,12 @@ import 'dart:math' show pi;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../../core/constants/meal_types.dart';
 import '../../core/models/nutrition_models.dart';
 import '../../core/services/auth_provider.dart';
+import '../../core/widgets/macro_bar.dart';
+import 'ai_meal_plan_screen.dart';
+import 'ai_meal_quick_add_sheet.dart';
 import 'food_search_sheet.dart';
 
 class NutritionScreen extends StatefulWidget {
@@ -307,11 +311,11 @@ class _CalculationsCard extends StatelessWidget {
                 const Text('Норма КБЖУ',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 12),
-                _MacroBar('Белки', 0, c.macros.protein, const Color(0xFF1565C0)),
+                MacroBar('Белки', 0, c.macros.protein, const Color(0xFF1565C0)),
                 const SizedBox(height: 10),
-                _MacroBar('Углеводы', 0, c.macros.carbs, const Color(0xFFF57F17)),
+                MacroBar('Углеводы', 0, c.macros.carbs, const Color(0xFFF57F17)),
                 const SizedBox(height: 10),
-                _MacroBar('Жиры', 0, c.macros.fat, const Color(0xFF2E7D32)),
+                MacroBar('Жиры', 0, c.macros.fat, const Color(0xFF2E7D32)),
               ],
             ),
           ),
@@ -583,6 +587,35 @@ class _DiaryTabState extends State<_DiaryTab> {
     }
   }
 
+  void _openAiQuickAdd() {
+    if (_mealPlanId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Создайте профиль питания перед добавлением приёмов пищи')));
+      return;
+    }
+    showAiMealQuickAddSheet(
+      context,
+      clientId: widget.clientId,
+      date: DateFormat('yyyy-MM-dd').format(_date),
+      onSaved: _load,
+    );
+  }
+
+  Future<void> _openAiMealPlan() async {
+    if (_mealPlanId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Создайте профиль питания перед генерацией меню')));
+      return;
+    }
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AiMealPlanScreen(clientId: widget.clientId, date: _date),
+      ),
+    );
+    if (saved == true) _load();
+  }
+
   void _showAddMeal() {
     if (_mealPlanId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -604,12 +637,9 @@ class _DiaryTabState extends State<_DiaryTab> {
               DropdownButtonFormField<String>(
                 value: selectedType,
                 decoration: const InputDecoration(labelText: 'Тип'),
-                items: const [
-                  DropdownMenuItem(value: 'breakfast', child: Text('Завтрак')),
-                  DropdownMenuItem(value: 'lunch', child: Text('Обед')),
-                  DropdownMenuItem(value: 'dinner', child: Text('Ужин')),
-                  DropdownMenuItem(value: 'snack', child: Text('Перекус')),
-                ],
+                items: mealTypeLabels.entries
+                    .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                    .toList(),
                 onChanged: (v) => setS(() => selectedType = v!),
               ),
               const SizedBox(height: 12),
@@ -715,12 +745,9 @@ class _DiaryTabState extends State<_DiaryTab> {
               DropdownButtonFormField<String>(
                 value: selectedType,
                 decoration: const InputDecoration(labelText: 'Тип'),
-                items: const [
-                  DropdownMenuItem(value: 'breakfast', child: Text('Завтрак')),
-                  DropdownMenuItem(value: 'lunch', child: Text('Обед')),
-                  DropdownMenuItem(value: 'dinner', child: Text('Ужин')),
-                  DropdownMenuItem(value: 'snack', child: Text('Перекус')),
-                ],
+                items: mealTypeLabels.entries
+                    .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                    .toList(),
                 onChanged: (v) => setS(() => selectedType = v!),
               ),
               const SizedBox(height: 12),
@@ -854,8 +881,19 @@ class _DiaryTabState extends State<_DiaryTab> {
                     ),
               Positioned(
                 right: 16,
+                bottom: 80,
+                child: FloatingActionButton.small(
+                  heroTag: 'ai-quick-add',
+                  tooltip: 'AI: что вы съели?',
+                  onPressed: _openAiQuickAdd,
+                  child: const Icon(Icons.auto_awesome),
+                ),
+              ),
+              Positioned(
+                right: 16,
                 bottom: 16,
                 child: FloatingActionButton(
+                  heroTag: 'add-meal',
                   onPressed: _showAddMeal,
                   child: const Icon(Icons.add),
                 ),
@@ -906,6 +944,12 @@ class _DiaryTabState extends State<_DiaryTab> {
               color: isToday ? Colors.grey.shade300 : null,
             ),
             onPressed: isToday ? null : _nextDay,
+          ),
+          IconButton(
+            icon: const Icon(Icons.restaurant_menu),
+            color: const Color(0xFF8B0000),
+            tooltip: 'AI-меню на этот день',
+            onPressed: _openAiMealPlan,
           ),
         ],
       ),
@@ -1038,13 +1082,13 @@ class _MacrosCard extends StatelessWidget {
             const Text('Макронутриенты',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             const SizedBox(height: 12),
-            _MacroBar('Белки', s.consumedProtein, s.targetProtein,
+            MacroBar('Белки', s.consumedProtein, s.targetProtein,
                 const Color(0xFF1565C0)),
             const SizedBox(height: 10),
-            _MacroBar('Углеводы', s.consumedCarbs, s.targetCarbs,
+            MacroBar('Углеводы', s.consumedCarbs, s.targetCarbs,
                 const Color(0xFFF57F17)),
             const SizedBox(height: 10),
-            _MacroBar('Жиры', s.consumedFat, s.targetFat,
+            MacroBar('Жиры', s.consumedFat, s.targetFat,
                 const Color(0xFF2E7D32)),
           ],
         ),
@@ -1079,25 +1123,11 @@ class _MealCard extends StatefulWidget {
 class _MealCardState extends State<_MealCard> {
   bool _expanded = true;
 
-  static const _typeLabels = {
-    'breakfast': 'Завтрак',
-    'lunch': 'Обед',
-    'dinner': 'Ужин',
-    'snack': 'Перекус',
-  };
-
-  static const _typeIcons = {
-    'breakfast': Icons.wb_sunny_outlined,
-    'lunch': Icons.wb_cloudy_outlined,
-    'dinner': Icons.nights_stay_outlined,
-    'snack': Icons.coffee_outlined,
-  };
-
   @override
   Widget build(BuildContext context) {
     final m = widget.meal;
-    final label = _typeLabels[m.type] ?? m.type;
-    final icon = _typeIcons[m.type] ?? Icons.restaurant;
+    final label = mealTypeLabels[m.type] ?? m.type;
+    final icon = mealTypeIcons[m.type] ?? Icons.restaurant;
 
     return Card(
       child: Column(
@@ -1219,61 +1249,6 @@ class _MealCardState extends State<_MealCard> {
 }
 
 // ─── Shared Helpers ───────────────────────────────────────────────────────────
-
-class _MacroBar extends StatelessWidget {
-  final String label;
-  final double consumed;
-  final double target;
-  final Color color;
-
-  const _MacroBar(this.label, this.consumed, this.target, this.color);
-
-  @override
-  Widget build(BuildContext context) {
-    final pct =
-        target > 0 ? (consumed / target).clamp(0.0, 1.0) : 0.0;
-    final showConsumed = consumed > 0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 10, height: 10,
-                  decoration: BoxDecoration(
-                      color: color, shape: BoxShape.circle),
-                ),
-                const SizedBox(width: 6),
-                Text(label, style: const TextStyle(fontSize: 13)),
-              ],
-            ),
-            const Spacer(),
-            Text(
-              showConsumed
-                  ? '${consumed.round()} / ${target.round()} г'
-                  : '${target.round()} г',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
-        ),
-        const SizedBox(height: 5),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: pct,
-            backgroundColor: color.withOpacity(0.12),
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-            minHeight: 8,
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 Widget _infoRow(String label, String value) {
   return Padding(

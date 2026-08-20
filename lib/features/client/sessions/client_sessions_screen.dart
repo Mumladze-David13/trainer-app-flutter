@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../core/models/models.dart';
 import '../../../core/services/auth_provider.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../../core/widgets/exercise_thumbnail.dart';
 
 class ClientSessionsScreen extends StatefulWidget {
   const ClientSessionsScreen({super.key});
@@ -207,8 +208,7 @@ class _SessionCard extends StatelessWidget {
             const Divider(height: 1),
             ...session.exercises.map((ex) => ListTile(
                   dense: true,
-                  leading: const Icon(Icons.fitness_center,
-                      size: 16, color: Colors.grey),
+                  leading: ExerciseThumbnail(imageUrl: ex.imageUrl, size: 32),
                   title: Text(ex.displayName),
                   subtitle: Text(_exDetails(ex),
                       style: const TextStyle(fontSize: 12)),
