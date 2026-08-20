@@ -1,5 +1,6 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'core/services/auth_provider.dart';
@@ -61,6 +62,16 @@ class _TrainerAppState extends State<TrainerApp> {
       navigatorKey: navigatorKey,
       theme: AppTheme.theme,
       debugShowCheckedModeBanner: false,
+      // Русская локаль нужна прежде всего для showDatePicker — с ней
+      // календарь показывает русские названия месяцев и начинает неделю
+      // с понедельника (это берётся из CLDR-данных для 'ru' в Flutter).
+      locale: const Locale('ru', 'RU'),
+      supportedLocales: const [Locale('ru', 'RU')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: Consumer<AuthProvider>(
         builder: (context, auth, _) {
           if (auth.isLoggedIn) {

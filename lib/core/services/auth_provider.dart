@@ -1,11 +1,17 @@
 // lib/core/services/auth_provider.dart
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/models.dart';
 import 'api_service.dart';
 
 enum ActiveMode { trainer, client }
+
+// Must match the intent-filter scheme in AndroidManifest.xml and the redirect
+// target the backend uses for `platform=mobile` OAuth logins.
+const String kOAuthCallbackUrlScheme = 'trainerapp';
 
 class AuthProvider extends ChangeNotifier {
   User? _user;
@@ -68,6 +74,24 @@ class AuthProvider extends ChangeNotifier {
       role: role,
     );
     await _handleAuth(res);
+  }
+
+  // Logs in (or auto-registers, on first use) via Google/VK/Mail.ru through the
+  // system browser. Returns true if this created a brand-new account, so the
+  // caller can send the user to pick a role.
+  Future<bool> loginWithOAuth(String provider) async {
+    final result = await FlutterWebAuth2.authenticate(
+      url: '$baseUrl/auth/$provider?platform=${kIsWeb ? 'web' : 'mobile'}',
+      callbackUrlScheme: kOAuthCallbackUrlScheme,
+    );
+    final uri = Uri.parse(result);
+    final error = uri.queryParameters['error'];
+    if (error != null) throw Exception(error);
+    final code = uri.queryParameters['code'];
+    if (code == null) throw Exception('Не получен код авторизации');
+    final res = await api.exchangeOAuthCode(code);
+    await _handleAuth(res);
+    return res['isNewUser'] == true;
   }
 
   Future<void> logout() async {
