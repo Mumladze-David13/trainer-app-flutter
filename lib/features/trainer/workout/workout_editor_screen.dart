@@ -1,6 +1,7 @@
 // lib/features/trainer/workout/workout_editor_screen.dart
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/models.dart';
 import '../../../core/services/auth_provider.dart';
@@ -103,6 +104,8 @@ class _WorkoutEditorScreenState extends State<WorkoutEditorScreen> {
   bool _loading = true;
   bool _saving = false;
   bool _isCompleted = false;
+  DateTime _date = DateTime.now();
+  final _dateFmt = DateFormat('dd.MM.yyyy', 'ru_RU');
   final _notesCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   List<_ExRow> _rows = [];
@@ -134,6 +137,7 @@ class _WorkoutEditorScreenState extends State<WorkoutEditorScreen> {
       final w = await api.getWorkout(widget.workoutId!);
       setState(() {
         _isCompleted = w.isCompleted;
+        _date = w.date;
         _notesCtrl.text = w.notes ?? '';
         _rows = w.workoutExercises.map((e) {
           // Ищем упражнение сначала по exerciseId, потом по exercise.id
@@ -216,6 +220,16 @@ class _WorkoutEditorScreenState extends State<WorkoutEditorScreen> {
     });
   }
 
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null) setState(() => _date = picked);
+  }
+
   Future<void> _save() async {
     if (_rows.isEmpty || _rows.any((r) => r.exerciseId == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -263,11 +277,13 @@ class _WorkoutEditorScreenState extends State<WorkoutEditorScreen> {
           seasonId: widget.seasonId!,
           notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
           exercises: exercises,
+          date: _date,
         );
       } else {
         await api.updateWorkout(widget.workoutId!,
           notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
           exercises: exercises,
+          date: _date,
         );
       }
       if (mounted) {
@@ -312,6 +328,7 @@ class _WorkoutEditorScreenState extends State<WorkoutEditorScreen> {
       builder: (_) => StatefulBuilder(
         builder: (ctx, setDlgState) => AlertDialog(
           title: const Text('Создать супер-сет'),
+          scrollable: true,
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -375,6 +392,30 @@ class _WorkoutEditorScreenState extends State<WorkoutEditorScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                // Дата занятия — фиксировано вверху, не скроллится
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: InkWell(
+                    onTap: readOnly ? null : _pickDate,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Дата',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      child: Row(
+                        children: [
+                          Text(_dateFmt.format(_date)),
+                          if (!readOnly) ...[
+                            const Spacer(),
+                            const Icon(Icons.calendar_today, size: 18),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
                 // Notes — фиксировано вверху, не скроллится
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),

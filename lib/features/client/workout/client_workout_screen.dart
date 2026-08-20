@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../../core/models/models.dart';
+import '../../../core/models/pose_analysis.dart';
 import '../../../core/services/auth_provider.dart';
+import '../../ai/pose_analysis_screen.dart';
 
 class ClientWorkoutScreen extends StatefulWidget {
   final String workoutId;
@@ -265,6 +267,20 @@ class _ClientWorkoutScreenState extends State<ClientWorkoutScreen> {
     );
   }
 
+  SupportedExercise? _mapExerciseToSupported(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('присед')) return SupportedExercise.squat;
+    if (lower.contains('отжим')) return SupportedExercise.pushUp;
+    if (lower.contains('станов')) return SupportedExercise.deadlift;
+    if (lower.contains('бицепс') ||
+        lower.contains('подъём') ||
+        lower.contains('подъем')) return SupportedExercise.bicepCurl;
+    if (lower.contains('жим над') ||
+        lower.contains('плечо') ||
+        lower.contains('дельт')) return SupportedExercise.shoulderPress;
+    return null;
+  }
+
   List<Widget> _buildExerciseList() {
     final widgets = <Widget>[];
     final exercises = _workout!.workoutExercises;
@@ -329,6 +345,22 @@ class _ClientWorkoutScreenState extends State<ClientWorkoutScreen> {
                       style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                     ),
                 ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.camera_alt, color: Colors.teal),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              constraints:
+                  const BoxConstraints(minWidth: 30, minHeight: 30),
+              tooltip: 'Анализ техники',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PoseAnalysisScreen(
+                    initialExercise:
+                        _mapExerciseToSupported(we.exercise.name),
+                  ),
+                ),
               ),
             ),
             if (isDone)
@@ -452,6 +484,22 @@ class _ClientWorkoutScreenState extends State<ClientWorkoutScreen> {
                               Text('${we.weight} кг',
                                   style: TextStyle(fontSize: 13, color: Colors.grey[600])),
                           ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.camera_alt, color: Colors.teal),
+                        iconSize: 20,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                            minWidth: 30, minHeight: 30),
+                        tooltip: 'Анализ техники',
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => PoseAnalysisScreen(
+                              initialExercise: _mapExerciseToSupported(
+                                  we.exercise.name),
+                            ),
+                          ),
                         ),
                       ),
                       if (isDone)

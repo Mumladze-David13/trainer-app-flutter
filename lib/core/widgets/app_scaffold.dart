@@ -12,6 +12,7 @@ import '../../features/client/activities/client_activities_screen.dart';
 import '../../features/client/reports/client_reports_screen.dart';
 import '../../features/nutrition/nutrition_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/ai/pose_analysis_screen.dart';
 
 const double _kWideBreakpoint = 700;
 const double _kContentMaxWidth = 600;
@@ -285,6 +286,12 @@ class _WebSidebar extends StatelessWidget {
               label: 'Отчёты',
               onTap: () => _push(context, const ClientReportsScreen()),
             ),
+            _SidebarTile(
+              icon: Icons.camera_alt,
+              label: 'Анализ техники',
+              color: Colors.teal,
+              onTap: () => _push(context, const PoseAnalysisScreen()),
+            ),
           ],
 
           const Divider(height: 1),
@@ -494,6 +501,15 @@ class AppDrawer extends StatelessWidget {
                 final ctx = context;
                 Navigator.pop(context);
                 _push(ctx, const ClientSeasonsScreen());
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.teal),
+              title: const Text('Анализ техники'),
+              onTap: () {
+                final ctx = context;
+                Navigator.pop(context);
+                _push(ctx, const PoseAnalysisScreen());
               },
             ),
           ],

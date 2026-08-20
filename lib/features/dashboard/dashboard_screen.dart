@@ -11,6 +11,7 @@ import '../client/activities/client_activities_screen.dart';
 import '../client/reports/client_reports_screen.dart';
 import '../settings/settings_screen.dart';
 import '../nutrition/nutrition_screen.dart';
+import '../ai/pose_analysis_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -69,6 +70,8 @@ class DashboardScreen extends StatelessWidget {
                     const Color(0xFF6A1B9A), () => const ClientActivitiesScreen()),
                 _Card('Отчёты', 'Статистика и прогресс', Icons.bar_chart,
                     const Color(0xFF1565C0), () => const ClientReportsScreen()),
+                _Card('Анализ техники', 'AI проверит правильность', Icons.camera_alt,
+                    Colors.teal, () => const PoseAnalysisScreen()),
               ],
               _Card('Настройки', 'Профиль и параметры', Icons.settings,
                   const Color(0xFF6D0000), () => const SettingsScreen()),

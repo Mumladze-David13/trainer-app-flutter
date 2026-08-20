@@ -1,9 +1,13 @@
 // lib/core/services/notification_service.dart
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'api_service.dart';
+import 'auth_provider.dart';
+import 'navigation_service.dart';
+import '../../features/trainer/clients/client_detail_screen.dart';
+import '../../features/client/seasons/client_seasons_screen.dart';
 
 const FirebaseOptions _firebaseOptions = FirebaseOptions(
   apiKey: 'AIzaSyBB_A9FpEh30xrYUkUc2l4ifMuFfcu_9oE',
@@ -75,6 +79,48 @@ class NotificationService {
         );
       }
     });
+  }
+
+  /// Переход на нужный экран по данным уведомления.
+  ///
+  /// Ожидаемый payload от backend: data.senderId — id пользователя,
+  /// отправившего сообщение. Тренеру открываем дашборд этого клиента,
+  /// клиенту — его дашборд занятий (сезоны/тренировки).
+  static void _navigateFromMessage(RemoteMessage message, AuthProvider auth) {
+    final navigator = navigatorKey.currentState;
+    if (navigator == null) return;
+
+    if (auth.showTrainerMenu) {
+      final senderId = message.data['senderId'];
+      if (senderId != null && (senderId as String).isNotEmpty) {
+        navigator.push(
+          MaterialPageRoute(
+            builder: (_) => ClientDetailScreen(clientId: senderId),
+          ),
+        );
+      }
+    } else if (auth.showClientMenu) {
+      navigator.push(
+        MaterialPageRoute(builder: (_) => const ClientSeasonsScreen()),
+      );
+    }
+  }
+
+  /// Обработка тапа по уведомлению, когда приложение уже запущено
+  /// (в foreground или фоне). Вызвать один раз после инициализации AuthProvider.
+  static void listenForMessageTaps(AuthProvider auth) {
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      _navigateFromMessage(message, auth);
+    });
+  }
+
+  /// Обработка запуска приложения тапом по уведомлению из terminated-состояния.
+  /// Вызвать после первого кадра (когда navigatorKey уже примонтирован).
+  static Future<void> checkInitialMessage(AuthProvider auth) async {
+    final message = await _messaging.getInitialMessage();
+    if (message != null) {
+      _navigateFromMessage(message, auth);
+    }
   }
 
   // Получить токен и сохранить на сервере

@@ -5,7 +5,22 @@ import 'package:provider/provider.dart';
 import '../../core/services/auth_provider.dart';
 import '../../core/services/notification_service.dart';
 import '../dashboard/dashboard_screen.dart';
+import 'choose_role_screen.dart';
 import 'register_screen.dart';
+
+class _OAuthProvider {
+  final String id;
+  final String label;
+  final String shortLabel;
+  final Color color;
+  const _OAuthProvider(this.id, this.label, this.shortLabel, this.color);
+}
+
+const _oauthProviders = [
+  _OAuthProvider('google', 'Google', 'G', Color(0xFFDB4437)),
+  _OAuthProvider('vk', 'VK', 'VK', Color(0xFF0077FF)),
+  _OAuthProvider('mailru', 'Mail.ru', 'M', Color(0xFF005FF9)),
+];
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -47,6 +62,31 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) setState(() { _error = 'Неверный email или пароль'; });
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loginWithProvider(_OAuthProvider provider) async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final auth = context.read<AuthProvider>();
+      final isNewUser = await auth.loginWithOAuth(provider.id);
+
+      await NotificationService.saveToken(auth.api);
+
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+              builder: (_) =>
+                  isNewUser ? const ChooseRoleScreen() : const DashboardScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = 'Не удалось войти через ${provider.label}');
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -152,6 +192,44 @@ class _LoginScreenState extends State<LoginScreen> {
                               : const Text('Войти',
                                   style: TextStyle(fontSize: 16)),
                         ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(child: Divider(color: Colors.grey[300])),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text('или', style: TextStyle(color: Colors.grey[600])),
+                          ),
+                          Expanded(child: Divider(color: Colors.grey[300])),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: _oauthProviders.map((provider) => Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: SizedBox(
+                              height: 48,
+                              child: OutlinedButton(
+                                onPressed:
+                                    _loading ? null : () => _loginWithProvider(provider),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: Colors.grey[300]!),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                ),
+                                child: Text(
+                                  provider.shortLabel,
+                                  style: TextStyle(
+                                      color: provider.color,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16),
+                                ),
+                              ),
+                            ),
+                          ),
+                        )).toList(),
                       ),
                       const SizedBox(height: 16),
                       Row(
