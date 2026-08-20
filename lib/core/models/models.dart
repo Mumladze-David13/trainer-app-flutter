@@ -112,12 +112,32 @@ class User {
   String get initials => '${firstName[0]}${lastName[0]}'.toUpperCase();
 }
 
+const List<String> kEquipmentPresets = [
+  'штанга',
+  'гантели',
+  'собственный вес',
+  'тренажёр',
+  'эспандер',
+  'фитбол',
+  'массажный ролик',
+  'медбол',
+  'другое',
+];
+
 class Exercise {
   final String id;
   final String name;
   final String? description;
   final String weightType; // "WEIGHT_KG" | "BODYWEIGHT" | "MACHINE"
   final double? metValue;
+  final String? globalExerciseId;
+  final String? equipment;
+  // Trainer's own uploaded photo for this exercise (Cloudinary), or null.
+  final String? ownImageUrl;
+  final String? imagePublicId;
+  // Only populated when the backend includes the globalExercise relation
+  // (not every endpoint does) — used solely for its imageUrl right now.
+  final GlobalExercise? globalExercise;
 
   Exercise({
     required this.id,
@@ -125,7 +145,16 @@ class Exercise {
     this.description,
     this.weightType = 'WEIGHT_KG',
     this.metValue,
+    this.globalExerciseId,
+    this.equipment,
+    this.ownImageUrl,
+    this.imagePublicId,
+    this.globalExercise,
   });
+
+  // Own uploaded photo takes priority; imported exercises without one fall
+  // back to the global catalog entry's picture.
+  String? get imageUrl => ownImageUrl ?? globalExercise?.imageUrl;
 
   factory Exercise.fromJson(Map<String, dynamic> j) => Exercise(
     id: j['id'] ?? '',
@@ -133,7 +162,91 @@ class Exercise {
     description: j['description'],
     weightType: j['weightType'] ?? 'WEIGHT_KG',
     metValue: (j['metValue'] as num?)?.toDouble(),
+    globalExerciseId: j['globalExerciseId'],
+    equipment: j['equipment'],
+    ownImageUrl: j['imageUrl'],
+    imagePublicId: j['imagePublicId'],
+    globalExercise: j['globalExercise'] != null
+        ? GlobalExercise.fromJson(j['globalExercise'])
+        : null,
   );
+
+  Exercise copyWithPhoto({String? ownImageUrl, String? imagePublicId}) => Exercise(
+    id: id,
+    name: name,
+    description: description,
+    weightType: weightType,
+    metValue: metValue,
+    globalExerciseId: globalExerciseId,
+    equipment: equipment,
+    ownImageUrl: ownImageUrl,
+    imagePublicId: imagePublicId,
+    globalExercise: globalExercise,
+  );
+}
+
+class GlobalExercise {
+  final String id;
+  final String name;
+  final String? nameRus;
+  final String? description;
+  final String? category;
+  final String? equipment;
+  final String? level;
+  final List<String> primaryMuscles;
+  final List<String> secondaryMuscles;
+  final String? imageUrl;
+
+  GlobalExercise({
+    required this.id,
+    required this.name,
+    this.nameRus,
+    this.description,
+    this.category,
+    this.equipment,
+    this.level,
+    this.primaryMuscles = const [],
+    this.secondaryMuscles = const [],
+    this.imageUrl,
+  });
+
+  String get displayName => nameRus ?? name;
+
+  factory GlobalExercise.fromJson(Map<String, dynamic> j) => GlobalExercise(
+    id: j['id'] ?? '',
+    name: j['name'] ?? '',
+    nameRus: j['nameRus'],
+    description: j['description'],
+    category: j['category'],
+    equipment: j['equipment'],
+    level: j['level'],
+    primaryMuscles: (j['primaryMuscles'] as List? ?? [])
+        .map((e) => e.toString())
+        .toList(),
+    secondaryMuscles: (j['secondaryMuscles'] as List? ?? [])
+        .map((e) => e.toString())
+        .toList(),
+    imageUrl: j['imageUrl'],
+  );
+}
+
+class GlobalExerciseImportResult {
+  final int requested;
+  final int imported;
+  final int skipped;
+
+  GlobalExerciseImportResult({
+    required this.requested,
+    required this.imported,
+    required this.skipped,
+  });
+
+  factory GlobalExerciseImportResult.fromJson(Map<String, dynamic> j) =>
+      GlobalExerciseImportResult(
+        requested: j['requested'] ?? 0,
+        imported: j['imported'] ?? 0,
+        skipped: j['skipped'] ?? 0,
+      );
 }
 
 class WorkoutExercise {
@@ -450,6 +563,7 @@ class ClientSessionExercise {
       );
 
   String get displayName => exercise?.name ?? clientActivity?.name ?? 'Активность';
+  String? get imageUrl => exercise?.imageUrl;
 }
 
 class ClientSession {
