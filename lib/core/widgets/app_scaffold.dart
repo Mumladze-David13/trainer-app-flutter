@@ -294,6 +294,15 @@ class _WebSidebar extends StatelessWidget {
             ),
           ],
 
+          if (auth.showSoloMenu) ...[
+            const _SidebarLabel('СОЛО'),
+            _SidebarTile(
+              icon: Icons.list,
+              label: 'Упражнения',
+              onTap: () => _push(context, const ExercisesScreen()),
+            ),
+          ],
+
           const Divider(height: 1),
           _SidebarTile(
             icon: Icons.settings,
@@ -510,6 +519,27 @@ class AppDrawer extends StatelessWidget {
                 final ctx = context;
                 Navigator.pop(context);
                 _push(ctx, const PoseAnalysisScreen());
+              },
+            ),
+          ],
+
+          if (auth.showSoloMenu) ...[
+            const Divider(),
+            const Padding(
+              padding: EdgeInsets.only(left: 16, top: 8, bottom: 4),
+              child: Text('СОЛО',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.list),
+              title: const Text('Упражнения'),
+              onTap: () {
+                final ctx = context;
+                Navigator.pop(context);
+                _push(ctx, const ExercisesScreen());
               },
             ),
           ],

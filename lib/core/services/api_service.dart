@@ -266,6 +266,53 @@ class ApiService {
     return res.data;
   }
 
+  // SOLO
+  Future<SoloProfile?> getSoloProfile() async {
+    final res = await _dio.get('/solo/profile');
+    if (res.data == null) return null;
+    return SoloProfile.fromJson(res.data);
+  }
+
+  Future<SoloProfile> saveSoloProfile({
+    required String goal,
+    required String level,
+    required int daysPerWeek,
+    required String equipment,
+    String? notes,
+  }) async {
+    final res = await _dio.post('/solo/profile', data: {
+      'goal': goal,
+      'level': level,
+      'daysPerWeek': daysPerWeek,
+      'equipment': equipment,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+    });
+    return SoloProfile.fromJson(res.data);
+  }
+
+  Future<SoloProfile> agreeSoloTerms() async {
+    final res = await _dio.post('/solo/agree-terms');
+    return SoloProfile.fromJson(res.data);
+  }
+
+  static final _soloLongTimeout = Options(receiveTimeout: const Duration(seconds: 30));
+
+  Future<Map<String, dynamic>> generateSoloProgram() async {
+    final res = await _dio.post('/solo/generate-program', options: _soloLongTimeout);
+    return res.data;
+  }
+
+  Future<Season?> getSoloCurrentSeason() async {
+    final res = await _dio.get('/solo/current-season');
+    if (res.data == null) return null;
+    return Season.fromJson(res.data);
+  }
+
+  Future<List<Season>> getSoloSeasons() async {
+    final res = await _dio.get('/solo/seasons');
+    return (res.data as List).map((e) => Season.fromJson(e)).toList();
+  }
+
   // SETTINGS
   Future<TrainerSettings> getTrainerSettings() async {
     final res = await _dio.get('/settings/trainer');

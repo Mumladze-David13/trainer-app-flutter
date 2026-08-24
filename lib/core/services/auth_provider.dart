@@ -28,6 +28,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isClient =>
       _user?.role == Role.client || _user?.role == Role.trainerClient;
   bool get isTrainerClient => _user?.role == Role.trainerClient;
+  bool get isSolo => _user?.role == Role.solo;
 
   bool get showTrainerMenu {
     if (_user?.role == Role.trainer) return true;
@@ -40,6 +41,8 @@ class AuthProvider extends ChangeNotifier {
     if (_user?.role == Role.trainerClient) return _activeMode == ActiveMode.client;
     return false;
   }
+
+  bool get showSoloMenu => _user?.role == Role.solo;
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();

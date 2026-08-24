@@ -51,7 +51,7 @@ class Gym {
   );
 }
 
-enum Role { trainer, client, trainerClient }
+enum Role { trainer, client, trainerClient, solo }
 
 extension RoleExtension on Role {
   String get label {
@@ -59,6 +59,7 @@ extension RoleExtension on Role {
       case Role.trainer: return 'Тренер';
       case Role.client: return 'Клиент';
       case Role.trainerClient: return 'Тренер-Клиент';
+      case Role.solo: return 'Самостоятельно';
     }
   }
 
@@ -67,6 +68,7 @@ extension RoleExtension on Role {
       case Role.trainer: return 'TRAINER';
       case Role.client: return 'CLIENT';
       case Role.trainerClient: return 'TRAINER_CLIENT';
+      case Role.solo: return 'SOLO';
     }
   }
 
@@ -74,9 +76,49 @@ extension RoleExtension on Role {
     switch (s) {
       case 'TRAINER': return Role.trainer;
       case 'CLIENT': return Role.client;
+      case 'SOLO': return Role.solo;
       default: return Role.trainerClient;
     }
   }
+}
+
+// SOLO-профиль (роль SOLO — тренировки без тренера, см. POST/GET /api/solo/profile).
+const String kSoloEquipmentGym = 'gym';
+const String kSoloEquipmentHomeDumbbells = 'home_dumbbells';
+const String kSoloEquipmentBodyweight = 'bodyweight';
+
+class SoloProfile {
+  final String goal;
+  final String level;
+  final int daysPerWeek;
+  final String equipment;
+  final String? notes;
+  final DateTime? agreedToTermsAt;
+  final String? currentSeasonId;
+
+  SoloProfile({
+    required this.goal,
+    required this.level,
+    required this.daysPerWeek,
+    required this.equipment,
+    this.notes,
+    this.agreedToTermsAt,
+    this.currentSeasonId,
+  });
+
+  bool get hasAgreedToTerms => agreedToTermsAt != null;
+
+  factory SoloProfile.fromJson(Map<String, dynamic> j) => SoloProfile(
+    goal: j['goal'] ?? '',
+    level: j['level'] ?? '',
+    daysPerWeek: j['daysPerWeek'] ?? 3,
+    equipment: j['equipment'] ?? kSoloEquipmentBodyweight,
+    notes: j['notes'],
+    agreedToTermsAt: j['agreedToTermsAt'] != null
+        ? DateTime.parse(j['agreedToTermsAt'])
+        : null,
+    currentSeasonId: j['currentSeasonId'],
+  );
 }
 
 class User {

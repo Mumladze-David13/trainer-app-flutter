@@ -12,6 +12,7 @@ import '../client/reports/client_reports_screen.dart';
 import '../settings/settings_screen.dart';
 import '../nutrition/nutrition_screen.dart';
 import '../ai/pose_analysis_screen.dart';
+import '../solo/solo_gate_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -20,6 +21,10 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final user = auth.user!;
+
+    if (user.role == Role.solo) {
+      return const SoloGateScreen();
+    }
 
     return AppScaffold(
       title: 'Workout Assistant',

@@ -32,6 +32,7 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
     _RoleOption('TRAINER', 'Тренер', 'Веду клиентов', Icons.sports),
     _RoleOption('CLIENT', 'Клиент', 'Занимаюсь у тренера', Icons.person),
     _RoleOption('TRAINER_CLIENT', 'Тренер-клиент', 'Оба режима', Icons.swap_horiz),
+    _RoleOption('SOLO', 'Соло', 'Тренируюсь сам с AI-помощником', Icons.self_improvement),
   ];
 
   Future<void> _continue() async {
