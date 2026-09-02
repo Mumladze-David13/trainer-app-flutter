@@ -489,6 +489,39 @@ class TrainerSettings {
   );
 }
 
+class SubscriptionPrice {
+  final String role;
+  final int fullPriceRub;
+  final bool isFirstMonth;
+  final int chargedRub;
+
+  SubscriptionPrice({
+    required this.role,
+    required this.fullPriceRub,
+    required this.isFirstMonth,
+    required this.chargedRub,
+  });
+
+  factory SubscriptionPrice.fromJson(Map<String, dynamic> j) => SubscriptionPrice(
+    role: j['role'] ?? '',
+    fullPriceRub: j['fullPriceRub'] ?? 0,
+    isFirstMonth: j['isFirstMonth'] ?? false,
+    chargedRub: j['chargedRub'] ?? 0,
+  );
+}
+
+class SubscriptionPayment {
+  final String paymentId;
+  final String confirmationUrl;
+
+  SubscriptionPayment({required this.paymentId, required this.confirmationUrl});
+
+  factory SubscriptionPayment.fromJson(Map<String, dynamic> j) => SubscriptionPayment(
+    paymentId: j['paymentId'] ?? '',
+    confirmationUrl: j['confirmationUrl'] ?? '',
+  );
+}
+
 class WeightLog {
   final String id;
   final String? clientId;

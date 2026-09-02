@@ -1,8 +1,15 @@
 // lib/features/client/activities/client_activities_screen.dart
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/models.dart';
 import '../../../core/services/auth_provider.dart';
+
+// На широких web-экранах модальный bottom sheet растягивается на всю ширину
+// окна и "прилипает" к низу — выглядит странно. На таких экранах показываем
+// ту же форму в виде обычного центрированного диалога вместо шторки снизу.
+bool _isWideScreen(BuildContext context) =>
+    kIsWeb && MediaQuery.of(context).size.width >= 700;
 
 class ClientActivitiesScreen extends StatefulWidget {
   const ClientActivitiesScreen({super.key});
@@ -68,6 +75,23 @@ class _ClientActivitiesScreenState extends State<ClientActivitiesScreen> {
   }
 
   void _openSheet([ClientActivity? activity]) {
+    if (_isWideScreen(context)) {
+      showDialog(
+        context: context,
+        builder: (_) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: _ActivityFormSheet(
+              activity: activity,
+              onSaved: _load,
+              showDragHandle: false,
+            ),
+          ),
+        ),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -204,8 +228,13 @@ class _ClientActivitiesScreenState extends State<ClientActivitiesScreen> {
 class _ActivityFormSheet extends StatefulWidget {
   final ClientActivity? activity;
   final VoidCallback onSaved;
+  final bool showDragHandle;
 
-  const _ActivityFormSheet({this.activity, required this.onSaved});
+  const _ActivityFormSheet({
+    this.activity,
+    required this.onSaved,
+    this.showDragHandle = true,
+  });
 
   @override
   State<_ActivityFormSheet> createState() => _ActivityFormSheetState();
@@ -287,16 +316,18 @@ class _ActivityFormSheetState extends State<_ActivityFormSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2)),
+          if (widget.showDragHandle) ...[
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2)),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
+          ],
           Text(
             isEdit ? 'Редактировать активность' : 'Новая активность',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),

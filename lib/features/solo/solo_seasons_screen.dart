@@ -1,4 +1,4 @@
-// lib/features/solo/solo_home_screen.dart
+// lib/features/solo/solo_seasons_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -9,19 +9,19 @@ import '../client/workout/client_workout_screen.dart';
 import '../trainer/workout/workout_editor_screen.dart';
 import 'solo_generate_program_screen.dart';
 
-// Главный SOLO-экран: список сезонов/занятий (GET /solo/seasons), плюс
-// создание сезона/занятия вручную или запуск AI-генерации. SOLO работает
-// через обычные тренерские/клиентские эндпоинты сезонов и занятий с
+// Список сезонов/занятий SOLO (GET /solo/seasons), плюс создание сезона/
+// занятия вручную или запуск AI-генерации. SOLO работает через обычные
+// тренерские/клиентские эндпоинты сезонов и занятий с
 // clientId = собственный userId (self-relation на бэке) — см.
 // flutter-prompt-solo-mode-20260824.md.
-class SoloHomeScreen extends StatefulWidget {
-  const SoloHomeScreen({super.key});
+class SoloSeasonsScreen extends StatefulWidget {
+  const SoloSeasonsScreen({super.key});
 
   @override
-  State<SoloHomeScreen> createState() => _SoloHomeScreenState();
+  State<SoloSeasonsScreen> createState() => _SoloSeasonsScreenState();
 }
 
-class _SoloHomeScreenState extends State<SoloHomeScreen> {
+class _SoloSeasonsScreenState extends State<SoloSeasonsScreen> {
   List<Season> _seasons = [];
   bool _loading = true;
   bool _showSeasonForm = false;
@@ -93,8 +93,7 @@ class _SoloHomeScreenState extends State<SoloHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: 'Мои тренировки',
-      isDashboard: true,
+      title: 'Занятия',
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(

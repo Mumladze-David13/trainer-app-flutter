@@ -127,6 +127,31 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
                           ),
                         )).toList(),
                       ),
+                      if (_selectedRole == 'TRAINER_CLIENT') ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Планируете тренироваться только сами, без своих клиентов? '
+                                  'Выберите режим «Соло» — это дешевле (от 250 ₽/мес против '
+                                  '2000 ₽/мес за «Тренер-клиент»).',
+                                  style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       if (_error != null) ...[
                         const SizedBox(height: 12),
                         Container(

@@ -335,6 +335,22 @@ class ApiService {
     await _dio.put('/settings/client/trainer', data: {'trainerId': trainerId});
   }
 
+  // SUBSCRIPTION
+  Future<SubscriptionPrice> getSubscriptionPrice() async {
+    final res = await _dio.get('/subscription/price');
+    return SubscriptionPrice.fromJson(res.data);
+  }
+
+  Future<SubscriptionPayment> createSubscriptionPayment(String platform) async {
+    final res = await _dio.post('/subscription/pay', data: {'platform': platform});
+    return SubscriptionPayment.fromJson(res.data);
+  }
+
+  Future<String> getSubscriptionPaymentStatus(String paymentId) async {
+    final res = await _dio.get('/subscription/payment/$paymentId/status');
+    return res.data['status'] as String;
+  }
+
 // CHAT
   Future<Map<String, dynamic>> findOrCreateConversation(String userId) async {
     final res = await _dio.post('/conversations/with/$userId');
@@ -407,6 +423,18 @@ class ApiService {
       // catch once the backend key is fixed.
       return _mockParseMeal(text);
     }
+  }
+
+  // Голосовой набор тренировки: свободный текст (расшифровка речи) → список
+  // распознанных упражнений. Бэкенд-эндпоинт может быть ещё не задеплоен —
+  // ошибку намеренно не глотаем как aiParseMeal, а даём вызывающему коду
+  // (voice_workout_input_sheet.dart) показать понятное сообщение, чтобы не
+  // подсовывать тренеру придуманные подходы/веса.
+  Future<List<Map<String, dynamic>>> aiParseWorkout(String text) async {
+    final res = await _dio.post('/ai/parse-workout', data: {
+      'text': text,
+    }, options: _aiLongTimeout);
+    return (res.data['exercises'] as List).cast<Map<String, dynamic>>();
   }
 
   Future<void> aiLogMeal(Map<String, dynamic> data) async {

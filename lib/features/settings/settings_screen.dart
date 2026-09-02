@@ -6,6 +6,7 @@ import '../../core/services/auth_provider.dart';
 import '../../core/widgets/app_scaffold.dart';
 import '../ai/ai_usage_screen.dart';
 import '../trainer/gyms/gyms_screen.dart';
+import '../subscription/subscription_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -230,6 +231,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     )).toList(),
                   ),
+                  if (_selectedRole == 'TRAINER_CLIENT') ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Планируете тренироваться только сами, без своих клиентов? '
+                              'Выберите режим «Соло» — это дешевле (от 250 ₽/мес против '
+                              '2000 ₽/мес за «Тренер-клиент»).',
+                              style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
@@ -417,6 +443,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 12),
           ],
+
+          // Subscription
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.workspace_premium, color: Color(0xFF8B0000)),
+              title: const Text('Подписка'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
 
           // AI usage
           Card(

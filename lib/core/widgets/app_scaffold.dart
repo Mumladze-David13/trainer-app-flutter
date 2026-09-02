@@ -13,6 +13,7 @@ import '../../features/client/reports/client_reports_screen.dart';
 import '../../features/nutrition/nutrition_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/ai/pose_analysis_screen.dart';
+import '../../features/solo/solo_seasons_screen.dart';
 
 const double _kWideBreakpoint = 700;
 const double _kContentMaxWidth = 600;
@@ -301,6 +302,33 @@ class _WebSidebar extends StatelessWidget {
               label: 'Упражнения',
               onTap: () => _push(context, const ExercisesScreen()),
             ),
+            _SidebarTile(
+              icon: Icons.event_note,
+              label: 'Занятия',
+              onTap: () => _push(context, const SoloSeasonsScreen()),
+            ),
+            _SidebarTile(
+              icon: Icons.restaurant_menu,
+              label: 'Питание',
+              onTap: () => _push(context,
+                  NutritionScreen(clientId: context.read<AuthProvider>().user!.id)),
+            ),
+            _SidebarTile(
+              icon: Icons.directions_run,
+              label: 'Мои активности',
+              onTap: () => _push(context, const ClientActivitiesScreen()),
+            ),
+            _SidebarTile(
+              icon: Icons.bar_chart,
+              label: 'Отчёты',
+              onTap: () => _push(context, const ClientReportsScreen()),
+            ),
+            _SidebarTile(
+              icon: Icons.camera_alt,
+              label: 'Анализ техники',
+              color: Colors.teal,
+              onTap: () => _push(context, const PoseAnalysisScreen()),
+            ),
           ],
 
           const Divider(height: 1),
@@ -540,6 +568,52 @@ class AppDrawer extends StatelessWidget {
                 final ctx = context;
                 Navigator.pop(context);
                 _push(ctx, const ExercisesScreen());
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.event_note),
+              title: const Text('Занятия'),
+              onTap: () {
+                final ctx = context;
+                Navigator.pop(context);
+                _push(ctx, const SoloSeasonsScreen());
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.restaurant_menu),
+              title: const Text('Питание'),
+              onTap: () {
+                final ctx = context;
+                final userId = context.read<AuthProvider>().user!.id;
+                Navigator.pop(context);
+                _push(ctx, NutritionScreen(clientId: userId));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.directions_run),
+              title: const Text('Мои активности'),
+              onTap: () {
+                final ctx = context;
+                Navigator.pop(context);
+                _push(ctx, const ClientActivitiesScreen());
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.bar_chart),
+              title: const Text('Отчёты'),
+              onTap: () {
+                final ctx = context;
+                Navigator.pop(context);
+                _push(ctx, const ClientReportsScreen());
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.teal),
+              title: const Text('Анализ техники'),
+              onTap: () {
+                final ctx = context;
+                Navigator.pop(context);
+                _push(ctx, const PoseAnalysisScreen());
               },
             ),
           ],

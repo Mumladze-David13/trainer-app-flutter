@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/models.dart';
 import '../../../core/services/auth_provider.dart';
+import 'voice_workout_input_sheet.dart';
 
 // Модель строки упражнения в редакторе
 class _ExRow {
@@ -185,6 +186,32 @@ class _WorkoutEditorScreenState extends State<WorkoutEditorScreen> {
 
   void _addRow() {
     setState(() => _rows.add(_ExRow()));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(
+          _scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Future<void> _openVoiceInput() async {
+    final results = await showVoiceWorkoutInputSheet(context, catalog: _exercises);
+    if (results == null || results.isEmpty || !mounted) return;
+    setState(() {
+      for (final r in results) {
+        _rows.add(_ExRow(
+          exerciseId: r.exerciseId,
+          exerciseName: r.exerciseName,
+          weightType: r.weightType,
+          sets: r.sets,
+          reps: r.reps,
+          weight: r.weight,
+        ));
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollCtrl.hasClients) {
         _scrollCtrl.animateTo(
@@ -455,6 +482,18 @@ class _WorkoutEditorScreenState extends State<WorkoutEditorScreen> {
                           onPressed: _addRow,
                           icon: const Icon(Icons.add, size: 14),
                           label: const Text('Добавить', style: TextStyle(fontSize: 12)),
+                          style: TextButton.styleFrom(
+                            minimumSize: Size.zero,
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        TextButton.icon(
+                          onPressed: _openVoiceInput,
+                          icon: const Icon(Icons.mic, size: 14, color: Color(0xFF8B0000)),
+                          label: const Text('Голосом',
+                              style: TextStyle(color: Color(0xFF8B0000), fontSize: 12)),
                           style: TextButton.styleFrom(
                             minimumSize: Size.zero,
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

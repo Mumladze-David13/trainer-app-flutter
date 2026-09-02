@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/models.dart';
 import '../../core/services/auth_provider.dart';
-import 'solo_home_screen.dart';
+import 'solo_dashboard_screen.dart';
 import 'solo_onboarding_screen.dart';
 
 // Точка входа для роли SOLO (см. flutter-prompt-solo-mode-20260824.md):
@@ -51,6 +51,6 @@ class _SoloGateScreenState extends State<SoloGateScreen> {
     if (!_profile!.hasAgreedToTerms) {
       return SoloOnboardingScreen(onDone: _load, initialStep: 2);
     }
-    return const SoloHomeScreen();
+    return const SoloDashboardScreen();
   }
 }
