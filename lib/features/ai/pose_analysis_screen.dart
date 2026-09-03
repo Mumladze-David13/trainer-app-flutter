@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart'
     show kDebugMode, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:gal/gal.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/pose_analysis.dart';
@@ -12,8 +11,10 @@ import '../../core/services/auth_provider.dart';
 import '../../core/services/pose_analysis_service.dart';
 import '../../core/services/calibration_logger.dart';
 import '../../core/services/pose_input_image_converter.dart';
+import '../../core/services/workout_video_library.dart';
 import 'pose_data_collection_screen.dart';
 import 'pose_overlay_painter.dart';
+import 'video_library_screen.dart';
 import 'video_preview_sheet.dart';
 
 class PoseAnalysisScreen extends StatefulWidget {
@@ -141,10 +142,8 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
     _cameraController?.startImageStream(_onImageAvailable);
   }
 
-  // Shared by plain live-analysis streaming (startImageStream) and by video
-  // recording (startVideoRecording(onAvailable: ...)) — the camera plugin
-  // only supports concurrent frame delivery + video capture through the
-  // latter's onAvailable callback, not by calling both APIs independently.
+  // Кадры для живого анализа техники (startImageStream). Во время записи
+  // видео поток кадров остановлен — см. _startRecording.
   Future<void> _onImageAvailable(CameraImage image) async {
     if (_isDetecting || !_isAnalyzing) return;
     _isDetecting = true;
@@ -214,9 +213,21 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
       if (controller.value.isStreamingImages) {
         await controller.stopImageStream();
       }
-      await controller.startVideoRecording(onAvailable: _onImageAvailable);
+      // Записываем плоским startVideoRecording() без onAvailable: связка
+      // "запись + доставка кадров в один и тот же колбэк" на реальных
+      // устройствах (проверено на Redmi Note 10) обрывает запись через
+      // ~2 секунды без ошибки и без участия кнопки "Стоп" — плагин camera
+      // не тянет одновременно кодирование видео и ML Kit обработку кадров
+      // в одном потоке. Живой анализ/скелет во время записи временно не
+      // работает — это осознанный компромисс ради надёжной записи видео.
+      await controller.startVideoRecording();
       if (!mounted) return;
-      setState(() => _isRecording = true);
+      setState(() {
+        _isRecording = true;
+        _isAnalyzing = false;
+        _lastPose = null;
+        _lastResult = null;
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -256,19 +267,21 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
       enableDrag: false,
       builder: (_) => VideoPreviewSheet(
         videoPath: videoPath,
-        onSave: () => _saveVideoToGallery(videoPath),
+        onSave: () => _saveVideoToLibrary(videoPath),
         onDelete: () => _deleteVideo(videoPath),
       ),
     );
   }
 
-  Future<void> _saveVideoToGallery(String videoPath) async {
+  // Видео остаётся только в приватной папке приложения на этом телефоне —
+  // никуда не отправляется. Из "Моих видео" его можно позже открыть для
+  // локального AI-анализа или удалить.
+  Future<void> _saveVideoToLibrary(String videoPath) async {
     try {
-      await Gal.putVideo(videoPath, album: 'Workout Assistant');
-      await File(videoPath).delete();
+      await WorkoutVideoLibrary().saveVideo(videoPath);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Видео сохранено в галерею')));
+            const SnackBar(content: Text('Видео сохранено в "Мои видео"')));
       }
     } catch (e) {
       if (mounted) {
@@ -326,6 +339,13 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.video_library_outlined),
+            tooltip: 'Мои видео',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const VideoLibraryScreen(),
+            )),
+          ),
           IconButton(
             icon: const Icon(Icons.dataset_outlined),
             tooltip: 'Сбор данных калибровки',

@@ -265,7 +265,7 @@ class _VideoPreviewSheetState extends State<VideoPreviewSheet> {
                     icon: const Icon(Icons.save_alt,
                         color: Colors.white, size: 20),
                     label: const Text(
-                      'Сохранить в галерею',
+                      'Сохранить в "Мои видео"',
                       style: TextStyle(color: Colors.white),
                     ),
                   ),

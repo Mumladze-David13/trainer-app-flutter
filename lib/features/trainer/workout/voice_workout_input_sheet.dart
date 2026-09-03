@@ -106,12 +106,30 @@ class _VoiceWorkoutInputSheetState extends State<_VoiceWorkoutInputSheet> {
       setState(() => _listening = false);
       return;
     }
+    // Текст, уже накопленный к моменту старта этой сессии (например,
+    // с прошлого раза, если тренер остановил запись и начал говорить
+    // снова) — recognizedWords в onResult относится только к текущей
+    // сессии, так что просто дописываем к нему base без дублей.
+    final base = _textCtrl.text.trim();
     setState(() => _listening = true);
     try {
       await _speech.listen(
         localeId: 'ru_RU',
+        // Пакет сам перезапускает нативный распознаватель, чтобы обойти
+        // короткий системный тайм-аут Android/iOS (1-3 сек), и держит
+        // сессию открытой, пока не наберётся pauseFor тишины подряд —
+        // так можно сделать паузу, чтобы вспомнить вес/повторы.
+        pauseFor: const Duration(seconds: 20),
+        listenFor: const Duration(minutes: 5),
+        listenOptions: stt.SpeechListenOptions(
+          partialResults: true,
+          cancelOnError: false,
+        ),
         onResult: (result) {
-          setState(() => _textCtrl.text = result.recognizedWords);
+          final merged = base.isEmpty
+              ? result.recognizedWords
+              : '$base ${result.recognizedWords}';
+          setState(() => _textCtrl.text = merged);
         },
       );
     } catch (_) {
