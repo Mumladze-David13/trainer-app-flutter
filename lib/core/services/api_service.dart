@@ -1,4 +1,5 @@
 // lib/core/services/api_service.dart
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -434,6 +435,23 @@ class ApiService {
     final res = await _dio.post('/ai/parse-workout', data: {
       'text': text,
     }, options: _aiLongTimeout);
+    return (res.data['exercises'] as List).cast<Map<String, dynamic>>();
+  }
+
+  // Голосовой набор тренировки — аудио-версия: распознавание речи целиком
+  // на бэкенде (см. backend_voice_workout_audio_prompt.md), клиент только
+  // пишет и загружает файл. Тот же формат ответа, что у aiParseWorkout.
+  static final _aiAudioTimeout = Options(
+    sendTimeout: const Duration(seconds: 60),
+    receiveTimeout: const Duration(seconds: 60),
+  );
+
+  Future<List<Map<String, dynamic>>> aiParseWorkoutAudio(File audioFile) async {
+    final formData = FormData.fromMap({
+      'audio': await MultipartFile.fromFile(audioFile.path),
+    });
+    final res = await _dio.post('/ai/parse-workout-audio',
+        data: formData, options: _aiAudioTimeout);
     return (res.data['exercises'] as List).cast<Map<String, dynamic>>();
   }
 

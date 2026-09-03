@@ -1,8 +1,11 @@
 // lib/features/trainer/workout/voice_workout_input_sheet.dart
+import 'dart:async';
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:record/record.dart';
 import '../../../core/models/models.dart';
 import '../../../core/services/auth_provider.dart';
 
@@ -57,83 +60,97 @@ class _VoiceWorkoutInputSheet extends StatefulWidget {
 }
 
 class _VoiceWorkoutInputSheetState extends State<_VoiceWorkoutInputSheet> {
-  final _speech = stt.SpeechToText();
   final _textCtrl = TextEditingController();
+  final _recorder = AudioRecorder();
 
-  bool _micAvailable = false;
-  bool _micInitTried = false;
-  bool _listening = false;
+  bool _recording = false;
+  Duration _recordDuration = Duration.zero;
+  Timer? _recordTimer;
 
   _Stage _stage = _Stage.input;
   String _errorText = '';
   List<VoiceExerciseResult> _parsed = [];
 
-  @override
-  void initState() {
-    super.initState();
-    _initMic();
-  }
-
-  Future<void> _initMic() async {
-    bool available = false;
-    try {
-      available = await _speech.initialize(
-        onError: (_) {
-          if (mounted) setState(() => _listening = false);
-        },
-        onStatus: (status) {
-          if (status == 'notListening' || status == 'done') {
-            if (mounted) setState(() => _listening = false);
-          }
-        },
-      );
-    } catch (_) {
-      // Пакет недоступен на этой платформе/устройстве — просто не
-      // показываем кнопку микрофона, текстовое поле остаётся рабочим.
-      available = false;
-    }
-    if (mounted) {
-      setState(() {
-        _micAvailable = available;
-        _micInitTried = true;
-      });
-    }
-  }
-
-  Future<void> _toggleListening() async {
-    if (_listening) {
-      await _speech.stop();
-      setState(() => _listening = false);
+  // Распознавание речи целиком перенесено на бэкенд (см.
+  // backend_voice_workout_audio_prompt.md): системные движки распознавания
+  // на части Android-прошивок (замечено на MIUI) не поддаются надёжной
+  // настройке из приложения и выдают бессмысленный текст на другом языке
+  // независимо от локали, которую мы просим. Поэтому здесь просто пишем
+  // аудио и шлём файл на сервер — там его распознаёт и разбирает ИИ.
+  Future<void> _startRecording() async {
+    if (!await _recorder.hasPermission()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Нет доступа к микрофону — разрешите его в настройках телефона.'),
+        ));
+      }
       return;
     }
-    // Текст, уже накопленный к моменту старта этой сессии (например,
-    // с прошлого раза, если тренер остановил запись и начал говорить
-    // снова) — recognizedWords в onResult относится только к текущей
-    // сессии, так что просто дописываем к нему base без дублей.
-    final base = _textCtrl.text.trim();
-    setState(() => _listening = true);
+    final dir = await getTemporaryDirectory();
+    final path = '${dir.path}/voice_workout_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    await _recorder.start(
+      const RecordConfig(
+        encoder: AudioEncoder.aacLc,
+        bitRate: 64000,
+        sampleRate: 16000,
+        numChannels: 1,
+      ),
+      path: path,
+    );
+    if (!mounted) return;
+    setState(() {
+      _recording = true;
+      _recordDuration = Duration.zero;
+    });
+    _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _recordDuration += const Duration(seconds: 1));
+    });
+  }
+
+  Future<void> _stopRecordingAndSend() async {
+    _recordTimer?.cancel();
+    final path = await _recorder.stop();
+    if (mounted) setState(() => _recording = false);
+    if (path == null) return;
+    await _recognizeAudio(path);
+  }
+
+  Future<void> _cancelRecording() async {
+    _recordTimer?.cancel();
+    await _recorder.cancel();
+    if (mounted) setState(() => _recording = false);
+  }
+
+  String _formatDuration(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  Future<void> _recognizeAudio(String path) async {
+    final api = context.read<AuthProvider>().api;
+    setState(() => _stage = _Stage.parsing);
     try {
-      await _speech.listen(
-        localeId: 'ru_RU',
-        // Пакет сам перезапускает нативный распознаватель, чтобы обойти
-        // короткий системный тайм-аут Android/iOS (1-3 сек), и держит
-        // сессию открытой, пока не наберётся pauseFor тишины подряд —
-        // так можно сделать паузу, чтобы вспомнить вес/повторы.
-        pauseFor: const Duration(seconds: 20),
-        listenFor: const Duration(minutes: 5),
-        listenOptions: stt.SpeechListenOptions(
-          partialResults: true,
-          cancelOnError: false,
-        ),
-        onResult: (result) {
-          final merged = base.isEmpty
-              ? result.recognizedWords
-              : '$base ${result.recognizedWords}';
-          setState(() => _textCtrl.text = merged);
-        },
-      );
+      final items = await api.aiParseWorkoutAudio(File(path));
+      _applyParsedExercises(items);
+    } on DioException catch (e) {
+      setState(() {
+        _stage = _Stage.error;
+        _errorText = e.response?.statusCode == 403
+            ? 'Исчерпан лимит AI-запросов на этот месяц.'
+            : 'Сервер сейчас не может распознать запись. '
+                'Попробуйте ещё раз или добавьте упражнения вручную.';
+      });
     } catch (_) {
-      setState(() => _listening = false);
+      setState(() {
+        _stage = _Stage.error;
+        _errorText = 'Не удалось связаться с сервером. Проверьте интернет '
+            'и попробуйте ещё раз, если не получится — добавьте вручную.';
+      });
+    } finally {
+      try {
+        await File(path).delete();
+      } catch (_) {}
     }
   }
 
@@ -141,53 +158,12 @@ class _VoiceWorkoutInputSheetState extends State<_VoiceWorkoutInputSheet> {
     final text = _textCtrl.text.trim();
     if (text.isEmpty) return;
     final api = context.read<AuthProvider>().api;
-    if (_listening) await _speech.stop();
-    if (!mounted) return;
 
-    setState(() {
-      _stage = _Stage.parsing;
-      _listening = false;
-    });
+    setState(() => _stage = _Stage.parsing);
 
     try {
       final items = await api.aiParseWorkout(text);
-      final results = items.map((item) {
-        final name = (item['name'] as String? ?? '').trim();
-        // Бэкенд получает каталог упражнений тренера в промт и по возможности
-        // сам возвращает exerciseId (как в /ai/generate-program) — доверяем
-        // ему, если id реально есть в каталоге; иначе — локальный фаззи-матч
-        // по названию как подстраховка.
-        final backendId = item['exerciseId'] as String?;
-        Exercise? match;
-        if (backendId != null) {
-          for (final ex in widget.catalog) {
-            if (ex.id == backendId) { match = ex; break; }
-          }
-        }
-        match ??= _matchExercise(name);
-        return VoiceExerciseResult(
-          exerciseId: match?.id,
-          exerciseName: match?.name ?? name,
-          weightType: match?.weightType ?? 'WEIGHT_KG',
-          sets: (item['sets'] as num?)?.toInt() ?? 3,
-          reps: (item['reps'] as num?)?.toInt() ?? 10,
-          weight: (item['weight'] as num?)?.toDouble(),
-        );
-      }).where((r) => r.exerciseName.isNotEmpty).toList();
-
-      if (results.isEmpty) {
-        setState(() {
-          _stage = _Stage.error;
-          _errorText = 'Не удалось распознать ни одного упражнения в тексте. '
-              'Попробуйте переформулировать или добавьте вручную.';
-        });
-        return;
-      }
-
-      setState(() {
-        _parsed = results;
-        _stage = _Stage.review;
-      });
+      _applyParsedExercises(items);
     } on DioException catch (e) {
       setState(() {
         _stage = _Stage.error;
@@ -203,6 +179,48 @@ class _VoiceWorkoutInputSheetState extends State<_VoiceWorkoutInputSheet> {
             'и добавьте упражнения вручную, если не получится снова.';
       });
     }
+  }
+
+  // Общая обработка ответа AI (что для текстового, что для аудио-эндпоинта —
+  // оба возвращают один и тот же список exercises) в список для проверки.
+  void _applyParsedExercises(List<Map<String, dynamic>> items) {
+    final results = items.map((item) {
+      final name = (item['name'] as String? ?? '').trim();
+      // Бэкенд получает каталог упражнений тренера в промт и по возможности
+      // сам возвращает exerciseId (как в /ai/generate-program) — доверяем
+      // ему, если id реально есть в каталоге; иначе — локальный фаззи-матч
+      // по названию как подстраховка.
+      final backendId = item['exerciseId'] as String?;
+      Exercise? match;
+      if (backendId != null) {
+        for (final ex in widget.catalog) {
+          if (ex.id == backendId) { match = ex; break; }
+        }
+      }
+      match ??= _matchExercise(name);
+      return VoiceExerciseResult(
+        exerciseId: match?.id,
+        exerciseName: match?.name ?? name,
+        weightType: match?.weightType ?? 'WEIGHT_KG',
+        sets: (item['sets'] as num?)?.toInt() ?? 3,
+        reps: (item['reps'] as num?)?.toInt() ?? 10,
+        weight: (item['weight'] as num?)?.toDouble(),
+      );
+    }).where((r) => r.exerciseName.isNotEmpty).toList();
+
+    if (results.isEmpty) {
+      setState(() {
+        _stage = _Stage.error;
+        _errorText = 'Не удалось распознать ни одного упражнения. '
+            'Попробуйте переформулировать или добавьте вручную.';
+      });
+      return;
+    }
+
+    setState(() {
+      _parsed = results;
+      _stage = _Stage.review;
+    });
   }
 
   // Простой фаззи-матч распознанного названия на каталог упражнений тренера:
@@ -224,7 +242,8 @@ class _VoiceWorkoutInputSheetState extends State<_VoiceWorkoutInputSheet> {
 
   @override
   void dispose() {
-    _speech.stop();
+    _recordTimer?.cancel();
+    _recorder.dispose();
     _textCtrl.dispose();
     super.dispose();
   }
@@ -290,7 +309,7 @@ class _VoiceWorkoutInputSheetState extends State<_VoiceWorkoutInputSheet> {
               children: [
                 TextButton(
                   onPressed: () => setState(() => _stage = _Stage.input),
-                  child: const Text('Назад к тексту'),
+                  child: const Text('Назад'),
                 ),
                 const SizedBox(width: 8),
                 TextButton(
@@ -311,24 +330,75 @@ class _VoiceWorkoutInputSheetState extends State<_VoiceWorkoutInputSheet> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (_micInitTried && !_micAvailable)
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.orange[50],
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              'Голосовой ввод недоступен на этом устройстве/браузере — '
-              'но можно напечатать текст и распознать его так же.',
-              style: TextStyle(fontSize: 12),
-            ),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _recording ? Colors.red[50] : Colors.grey[100],
+            borderRadius: BorderRadius.circular(12),
           ),
+          child: Column(
+            children: [
+              if (_recording) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.fiber_manual_record, color: Colors.red[700], size: 16),
+                    const SizedBox(width: 8),
+                    Text(_formatDuration(_recordDuration),
+                        style: TextStyle(
+                            color: Colors.red[700],
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const Text('Говорите — упражнение, подходы, повторы, вес. '
+                    'Паузы не страшны, диктуйте сколько нужно.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.black54)),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: _cancelRecording,
+                      child: const Text('Отменить'),
+                    ),
+                    const SizedBox(width: 12),
+                    FilledButton.icon(
+                      onPressed: _stopRecordingAndSend,
+                      style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8B0000)),
+                      icon: const Icon(Icons.stop, size: 18),
+                      label: const Text('Стоп и распознать'),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                const Text('Надиктуйте состав тренировки — запись отправится '
+                    'на распознавание ИИ',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13)),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: _startRecording,
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8B0000)),
+                  icon: const Icon(Icons.mic, size: 18),
+                  label: const Text('Записать голосом'),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text('...или напечатайте текст:',
+            style: TextStyle(fontSize: 12, color: Colors.black54)),
+        const SizedBox(height: 6),
         TextField(
           controller: _textCtrl,
-          maxLines: 5,
-          minLines: 3,
+          maxLines: 4,
+          minLines: 2,
+          onChanged: (_) => setState(() {}),
           decoration: const InputDecoration(
             border: OutlineInputBorder(),
             hintText: 'Например: жим лёжа три подхода по десять на восьмидесяти, '
@@ -336,23 +406,14 @@ class _VoiceWorkoutInputSheetState extends State<_VoiceWorkoutInputSheet> {
           ),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            if (_micAvailable)
-              OutlinedButton.icon(
-                onPressed: _toggleListening,
-                icon: Icon(_listening ? Icons.stop : Icons.mic,
-                    color: _listening ? Colors.red : null),
-                label: Text(_listening ? 'Стоп' : 'Говорить'),
-              ),
-            const Spacer(),
-            FilledButton.icon(
-              onPressed: _textCtrl.text.trim().isEmpty ? null : _recognize,
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8B0000)),
-              icon: const Icon(Icons.auto_awesome, size: 18),
-              label: const Text('Распознать'),
-            ),
-          ],
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            onPressed: _textCtrl.text.trim().isEmpty ? null : _recognize,
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8B0000)),
+            icon: const Icon(Icons.auto_awesome, size: 18),
+            label: const Text('Распознать текст'),
+          ),
         ),
       ],
     );
