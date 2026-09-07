@@ -1,7 +1,7 @@
 // lib/features/ai/pose_analysis_screen.dart
 import 'dart:io';
 import 'package:flutter/foundation.dart'
-    show kDebugMode, defaultTargetPlatform, TargetPlatform;
+    show kDebugMode, kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
@@ -104,7 +104,11 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
       setState(() {
         _lensDirection = direction;
         _isCameraInitialized = true;
-        _errorMessage = null;
+        // ML Kit's pose detector has no web implementation, so live
+        // analysis can never produce frames there — surface that instead
+        // of silently doing nothing when "Начать анализ" is pressed.
+        _errorMessage =
+            kIsWeb ? 'Live-анализ техники доступен только в мобильном приложении' : null;
       });
       _startImageStream();
     }
@@ -139,6 +143,10 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
   }
 
   void _startImageStream() {
+    // startImageStream() asserts defaultTargetPlatform is android/iOS and
+    // throws on web — ML Kit has no web backend anyway, so there is nothing
+    // to stream frames to there.
+    if (kIsWeb) return;
     _cameraController?.startImageStream(_onImageAvailable);
   }
 
@@ -245,7 +253,7 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
       setState(() => _isRecording = false);
       // stopVideoRecording() also stops frame streaming — resume it so live
       // analysis keeps working after the recording ends.
-      if (!controller.value.isStreamingImages) {
+      if (!kIsWeb && !controller.value.isStreamingImages) {
         controller.startImageStream(_onImageAvailable);
       }
       await _showSaveVideoDialog(file.path);
@@ -313,7 +321,9 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Анализ техники'),
+            const Flexible(
+              child: Text('Анализ техники', overflow: TextOverflow.ellipsis),
+            ),
             if (_isRecording) ...[
               const SizedBox(width: 8),
               Container(
@@ -473,27 +483,30 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
               children: [
                 if (_isCameraInitialized)
                   Center(
-                    child: AspectRatio(
-                      aspectRatio: _cameraController!.value.aspectRatio,
-                      child: Stack(
-                        children: [
-                          CameraPreview(_cameraController!),
-                          if (_lastPose != null &&
+                    // CameraPreview already wraps itself in an AspectRatio
+                    // that correctly inverts the ratio for portrait devices
+                    // (see camera_preview.dart). Wrapping it in a second,
+                    // uninverted AspectRatio here made the outer box the
+                    // wrong shape, and Stack's default topStart alignment
+                    // then pinned the (correctly-sized) preview to one
+                    // corner instead of centering it. CameraPreview's own
+                    // `child` slot places the overlay inside its correct
+                    // internal Stack instead.
+                    child: CameraPreview(
+                      _cameraController!,
+                      child: (_lastPose != null &&
                               _lastImageSize != null &&
                               _lastImageRotation != null)
-                            Positioned.fill(
-                              child: CustomPaint(
-                                painter: PoseOverlayPainter(
-                                  pose: _lastPose!,
-                                  imageSize: _lastImageSize!,
-                                  rotation: _lastImageRotation!,
-                                  cameraLensDirection: _lensDirection,
-                                  result: _lastResult,
-                                ),
+                          ? CustomPaint(
+                              painter: PoseOverlayPainter(
+                                pose: _lastPose!,
+                                imageSize: _lastImageSize!,
+                                rotation: _lastImageRotation!,
+                                cameraLensDirection: _lensDirection,
+                                result: _lastResult,
                               ),
-                            ),
-                        ],
-                      ),
+                            )
+                          : null,
                     ),
                   )
                 else
@@ -604,7 +617,8 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
               width: double.infinity,
               height: 52,
               child: ElevatedButton.icon(
-                onPressed: _isCameraInitialized ? _toggleAnalysis : null,
+                onPressed:
+                    _isCameraInitialized && !kIsWeb ? _toggleAnalysis : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
                       _isAnalyzing ? Colors.red : const Color(0xFF1976D2),
