@@ -679,12 +679,25 @@ class BurnedCalories {
   );
 }
 
+enum ActivityUnit {
+  times,
+  km;
+
+  static ActivityUnit fromJson(String? v) =>
+      v == 'KM' ? ActivityUnit.km : ActivityUnit.times;
+
+  String toJson() => this == ActivityUnit.km ? 'KM' : 'TIMES';
+
+  String get label => this == ActivityUnit.km ? 'км' : 'раз';
+}
+
 class ClientActivity {
   final String id;
   final String clientId;
   final String name;
   final double? metValue;
   final String? description;
+  final ActivityUnit unit;
 
   const ClientActivity({
     required this.id,
@@ -692,6 +705,7 @@ class ClientActivity {
     required this.name,
     this.metValue,
     this.description,
+    this.unit = ActivityUnit.times,
   });
 
   factory ClientActivity.fromJson(Map<String, dynamic> j) => ClientActivity(
@@ -700,6 +714,28 @@ class ClientActivity {
     name: j['name'] ?? '',
     metValue: (j['metValue'] as num?)?.toDouble(),
     description: j['description'],
+    unit: ActivityUnit.fromJson(j['unit'] as String?),
+  );
+}
+
+class ClientActivityLog {
+  final String id;
+  final String clientActivityId;
+  final DateTime date;
+  final double value;
+
+  const ClientActivityLog({
+    required this.id,
+    required this.clientActivityId,
+    required this.date,
+    required this.value,
+  });
+
+  factory ClientActivityLog.fromJson(Map<String, dynamic> j) => ClientActivityLog(
+    id: j['id'] ?? '',
+    clientActivityId: j['clientActivityId'] ?? '',
+    date: DateTime.parse(j['date']),
+    value: (j['value'] as num).toDouble(),
   );
 }
 

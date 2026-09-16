@@ -805,12 +805,14 @@ class ApiService {
     required String name,
     double? metValue,
     String? description,
+    ActivityUnit unit = ActivityUnit.times,
   }) async {
     final res = await _dio.post('/client-activities', data: {
       'name': name,
       if (metValue != null) 'metValue': metValue,
       if (description != null && description.isNotEmpty)
         'description': description,
+      'unit': unit.toJson(),
     });
     return ClientActivity.fromJson(res.data);
   }
@@ -820,12 +822,14 @@ class ApiService {
         required String name,
         double? metValue,
         String? description,
+        ActivityUnit unit = ActivityUnit.times,
       }) async {
     final res = await _dio.put('/client-activities/$id', data: {
       'name': name,
       if (metValue != null) 'metValue': metValue,
       if (description != null && description.isNotEmpty)
         'description': description,
+      'unit': unit.toJson(),
     });
     return ClientActivity.fromJson(res.data);
   }
@@ -839,6 +843,27 @@ class ApiService {
     final res =
     await _dio.get('/client-activities/trainer/client/$clientId');
     return (res.data as List).map((e) => ClientActivity.fromJson(e)).toList();
+  }
+
+  Future<ClientActivityLog> addClientActivityLog(
+      String activityId, double value, {DateTime? date}) async {
+    final res = await _dio.post('/client-activities/$activityId/logs', data: {
+      'value': value,
+      if (date != null) 'date': date.toIso8601String(),
+    });
+    return ClientActivityLog.fromJson(res.data);
+  }
+
+  Future<List<ClientActivityLog>> getClientActivityLogs(
+      String activityId) async {
+    final res = await _dio.get('/client-activities/$activityId/logs');
+    return (res.data as List)
+        .map((e) => ClientActivityLog.fromJson(e))
+        .toList();
+  }
+
+  Future<void> deleteClientActivityLog(String activityId, String logId) async {
+    await _dio.delete('/client-activities/$activityId/logs/$logId');
   }
 
   // EXERCISE PROGRESS

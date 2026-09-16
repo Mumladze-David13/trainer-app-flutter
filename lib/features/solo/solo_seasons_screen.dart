@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/models.dart';
 import '../../core/services/auth_provider.dart';
 import '../../core/widgets/app_scaffold.dart';
+import '../client/sessions/client_sessions_screen.dart';
 import '../client/workout/client_workout_screen.dart';
 import '../trainer/workout/workout_editor_screen.dart';
 import 'solo_generate_program_screen.dart';
@@ -101,6 +102,45 @@ class _SoloSeasonsScreenState extends State<SoloSeasonsScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  InkWell(
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ClientSessionsScreen()),
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2E7D32),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Colors.white24,
+                            child: Icon(Icons.self_improvement, color: Colors.white, size: 20),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Мои тренировки',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 15)),
+                                Text('Самостоятельные занятия с активностями',
+                                    style: TextStyle(color: Colors.white70, fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_right, color: Colors.white),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   if (_showSeasonForm) _buildSeasonForm(),
                   Row(
                     children: [
