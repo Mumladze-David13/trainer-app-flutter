@@ -8,6 +8,9 @@ import '../ai/ai_usage_screen.dart';
 import '../trainer/gyms/gyms_screen.dart';
 import '../subscription/subscription_screen.dart';
 
+// Оплата пока не принимается — вернуть true, когда подключим ЮKassa в проде
+const _showSubscription = false;
+
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -444,19 +447,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 12),
           ],
 
-          // Subscription
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.workspace_premium, color: Color(0xFF8B0000)),
-              title: const Text('Подписка'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+          // Subscription — скрыта на время бесплатного теста
+          if (_showSubscription) ...[
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.workspace_premium, color: Color(0xFF8B0000)),
+                title: const Text('Подписка'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
+          ],
 
           // AI usage
           Card(
