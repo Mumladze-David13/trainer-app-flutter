@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/services/auth_provider.dart';
 import 'ai_usage_screen.dart';
+import 'ai_error_text.dart';
 
 class GenerateProgramScreen extends StatefulWidget {
   final String clientId;
@@ -84,13 +85,13 @@ class _GenerateProgramScreenState extends State<GenerateProgramScreen> {
         _showLimitBottomSheet();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ошибка генерации. Попробуйте снова.')));
+            SnackBar(content: Text('Ошибка генерации. Попробуйте снова.\n${aiErrorDetail(e)}')));
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() => _step = 1);
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ошибка генерации. Попробуйте снова.')));
+            SnackBar(content: Text('Ошибка генерации. Попробуйте снова.\n${aiErrorDetail(e)}')));
       }
     }
   }

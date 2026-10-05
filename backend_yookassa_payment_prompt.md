@@ -1,7 +1,7 @@
 # Задача: приём оплаты подписки через ЮKassa
 
 ## Сервер
-`http://144.31.189.154:8080` (NestJS + Prisma + PostgreSQL, тот же backend, что и в
+`http://95.81.72.98:8080` (NestJS + Prisma + PostgreSQL, тот же backend, что и в
 остальных `backend_*_prompt.md`)
 
 ## Контекст
@@ -48,7 +48,7 @@ Flutter-сторона (для справки, ничего здесь меня�
 
 ЮKassa **не отправляет уведомления (webhook) на `http://`-адрес** — в кабинете
 магазина URL для HTTP-уведомлений принимается только с `https://` и валидным
-сертификатом. Сейчас бэкенд слушает на голом `http://144.31.189.154:8080`, без
+сертификатом. Сейчас бэкенд слушает на голом `http://95.81.72.98:8080`, без
 домена и TLS. Прежде чем вебхук заработает, нужен реверс-прокси с сертификатом
 (nginx + Let's Encrypt/Certbot, либо Cloudflare Tunnel и т.п.) перед портом 8080,
 и в кабинете ЮKassa должен быть указан `https://<домен>/api/subscription/yookassa-webhook`.
@@ -181,7 +181,7 @@ JWT-защищён. Найти `SubscriptionPayment` по `id`; если не н
    тестирования магазина) → дождаться вебхука (или подёргать
    `GET /api/subscription/payment/:id/status` вручную, пока `succeeded`).
 3. Без реального вебхука (нет HTTPS/домена ещё) — эмулировать вручную:
-   `curl -X POST http://144.31.189.154:8080/api/subscription/yookassa-webhook
+   `curl -X POST http://95.81.72.98:8080/api/subscription/yookassa-webhook
    -d '{"event":"payment.succeeded","object":{"id":"<yookassaPaymentId из шага 1>"}}'`
    — сервис должен сходить в ЮKassa API за реальным статусом (тестовый платёж уже
    оплачен) и проставить `succeeded`.

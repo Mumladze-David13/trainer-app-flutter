@@ -1,7 +1,7 @@
 # Баг: Nutrition API возвращает 500 на все запросы
 
 ## Сервер
-`http://144.31.189.154:8080` (NestJS + TypeORM + PostgreSQL)
+`http://95.81.72.98:8080` (NestJS + TypeORM + PostgreSQL)
 
 ## Симптомы
 
@@ -19,7 +19,7 @@ GET  /api/nutrition/meal-plan/{clientId} → не проверялось, вер
 ## Пример запроса который должен работать
 
 ```bash
-curl -X POST http://144.31.189.154:8080/api/nutrition/profile \
+curl -X POST http://95.81.72.98:8080/api/nutrition/profile \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/meal_types.dart';
 import '../../core/services/auth_provider.dart';
 import '../ai/ai_limit_bottom_sheet.dart';
+import '../ai/ai_error_text.dart';
 
 Future<void> showAiMealQuickAddSheet(
   BuildContext context, {
@@ -131,13 +132,13 @@ class _AiMealQuickAddSheetState extends State<_AiMealQuickAddSheet> {
       } else {
         setState(() => _step = 1);
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Не удалось распознать. Попробуйте ещё раз.')));
+            SnackBar(content: Text('Не удалось распознать. Попробуйте ещё раз.\n${aiErrorDetail(e)}')));
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() => _step = 1);
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Не удалось распознать. Попробуйте ещё раз.')));
+            SnackBar(content: Text('Не удалось распознать. Попробуйте ещё раз.\n${aiErrorDetail(e)}')));
       }
     }
   }

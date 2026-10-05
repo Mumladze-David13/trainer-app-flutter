@@ -1,7 +1,7 @@
 # Задача: вход через Google, VK и Mail.ru
 
 ## Сервер
-`http://144.31.189.154:8080` (NestJS + Prisma + PostgreSQL, тот же backend, что и в
+`http://95.81.72.98:8080` (NestJS + Prisma + PostgreSQL, тот же backend, что и в
 остальных `backend_*_prompt.md`)
 
 ## Контекст
@@ -179,7 +179,7 @@ VK_CLIENT_ID=
 VK_CLIENT_SECRET=
 MAILRU_CLIENT_ID=
 MAILRU_CLIENT_SECRET=
-PUBLIC_API_URL=http://144.31.189.154:8080   # для redirect_uri провайдеров
+PUBLIC_API_URL=http://95.81.72.98:8080   # для redirect_uri провайдеров
 OAUTH_MOBILE_REDIRECT_SCHEME=trainerapp
 ```
 
@@ -196,10 +196,10 @@ Client id/secret для всех трёх провайдеров получае�
 
 ```bash
 # должен отдать 302 на consent-экран Google
-curl -i "http://144.31.189.154:8080/api/auth/google?platform=web"
+curl -i "http://95.81.72.98:8080/api/auth/google?platform=web"
 
 # после ручного прохождения флоу в браузере — код из редиректа:
-curl -X POST http://144.31.189.154:8080/api/auth/exchange \
+curl -X POST http://95.81.72.98:8080/api/auth/exchange \
   -H "Content-Type: application/json" \
   -d '{"code": "<код из ?code=...>"}'
 # ожидается 200 { user, token, isNewUser }

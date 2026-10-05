@@ -36,7 +36,7 @@ flutter build apk --release
 ## Изменить URL backend
 Откройте `lib/core/services/api_service.dart` и замените:
 ```dart
-const String baseUrl = 'http://144.31.189.154:3000/api';
+const String baseUrl = 'http://95.81.72.98:3000/api';
 ```
 
 ## Структура проекта

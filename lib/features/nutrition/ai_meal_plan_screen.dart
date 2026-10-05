@@ -8,6 +8,7 @@ import '../../core/models/nutrition_models.dart';
 import '../../core/services/auth_provider.dart';
 import '../../core/widgets/macro_bar.dart';
 import '../ai/ai_limit_bottom_sheet.dart';
+import '../ai/ai_error_text.dart';
 
 class AiMealPlanScreen extends StatefulWidget {
   final String clientId;
@@ -72,13 +73,13 @@ class _AiMealPlanScreenState extends State<AiMealPlanScreen> {
       } else {
         setState(() => _step = 1);
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ошибка генерации. Попробуйте снова.')));
+            SnackBar(content: Text('Ошибка генерации. Попробуйте снова.\n${aiErrorDetail(e)}')));
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() => _step = 1);
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ошибка генерации. Попробуйте снова.')));
+            SnackBar(content: Text('Ошибка генерации. Попробуйте снова.\n${aiErrorDetail(e)}')));
       }
     }
   }

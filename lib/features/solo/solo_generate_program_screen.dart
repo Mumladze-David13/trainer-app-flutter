@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/services/auth_provider.dart';
+import '../ai/ai_error_text.dart';
 
 // Одношаговая AI-генерация для SOLO: POST /solo/generate-program сразу
 // создаёт сезон и занятия на бэке (в отличие от тренерского
@@ -34,12 +35,12 @@ class _SoloGenerateProgramScreenState extends State<SoloGenerateProgramScreen> {
     try {
       final result = await api.generateSoloProgram();
       if (mounted) setState(() { _result = result; _loading = false; });
-    } on DioException catch (_) {
+    } on DioException catch (e) {
       if (mounted) {
         setState(() { _failed = true; _loading = false; });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
-              'Не удалось сгенерировать программу, попробуйте позже или добавьте тренировки вручную'),
+              'Не удалось сгенерировать программу, попробуйте позже или добавьте тренировки вручную\n${aiErrorDetail(e)}'),
         ));
       }
     } catch (_) {

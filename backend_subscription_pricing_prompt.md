@@ -1,7 +1,7 @@
 # Задача: управляемые тарифы подписки (SOLO/CLIENT/TRAINER) + скидка 50% на первый месяц
 
 ## Сервер
-`http://144.31.189.154:8080` (NestJS + Prisma + PostgreSQL, тот же backend, что и в
+`http://95.81.72.98:8080` (NestJS + Prisma + PostgreSQL, тот же backend, что и в
 `backend_nutrition_ai_prompt.md` / `backend_pose_calibration_prompt.md`)
 
 ## Контекст

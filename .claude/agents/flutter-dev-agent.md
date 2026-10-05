@@ -95,7 +95,7 @@ class MyModel {
 или создавать отдельный файл в lib/core/models/.
 
 ## Backend API
-- Base URL: http://144.31.189.154:8080/api
+- Base URL: http://95.81.72.98:8080/api
 - Авторизация: Bearer токен (хранится в SharedPreferences под ключом 'token')
 - Все endpoints задокументированы в src/app/core/services/api.service.ts фронтенда
 

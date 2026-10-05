@@ -1,7 +1,7 @@
 # Задача: распознавание голосового набора тренировки (`POST /api/ai/parse-workout`)
 
 ## Сервер
-`http://144.31.189.154:8080` (NestJS + Prisma + PostgreSQL, тот же backend, что и в
+`http://95.81.72.98:8080` (NestJS + Prisma + PostgreSQL, тот же backend, что и в
 остальных `backend_*_prompt.md`)
 
 ## Контекст

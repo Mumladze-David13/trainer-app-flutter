@@ -1,7 +1,7 @@
 # Задача: добавить data-payload в push-уведомления о новых сообщениях чата
 
 ## Сервер
-`http://144.31.189.154:8080` (NestJS + TypeORM + PostgreSQL, тот же backend что и в `backend_nutrition_fix_prompt.md`)
+`http://95.81.72.98:8080` (NestJS + TypeORM + PostgreSQL, тот же backend что и в `backend_nutrition_fix_prompt.md`)
 
 ## Контекст
 

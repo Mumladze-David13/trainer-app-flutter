@@ -1,7 +1,7 @@
 # Задача: удаление сезона + изменение даты занятия (Workout)
 
 ## Сервер
-`http://144.31.189.154:8080` (NestJS + TypeORM/Prisma + PostgreSQL, тот же backend,
+`http://95.81.72.98:8080` (NestJS + TypeORM/Prisma + PostgreSQL, тот же backend,
 что и в остальных `backend_*_prompt.md`)
 
 ## Контекст
@@ -106,11 +106,11 @@ const updated = await this.prisma.workout.update({
 ## Проверка
 
 ```bash
-curl -X DELETE http://144.31.189.154:8080/api/clients/<clientId>/seasons/<seasonId> \
+curl -X DELETE http://95.81.72.98:8080/api/clients/<clientId>/seasons/<seasonId> \
   -H "Authorization: Bearer <валидный_токен_тренера>"
 # Ожидается 200, сезон и все его занятия пропадают из GET .../seasons
 
-curl -X PUT http://144.31.189.154:8080/api/workouts/<workoutId> \
+curl -X PUT http://95.81.72.98:8080/api/workouts/<workoutId> \
   -H "Authorization: Bearer <валидный_токен_тренера>" \
   -H "Content-Type: application/json" \
   -d '{"date": "2026-08-20"}'

@@ -1,7 +1,7 @@
 # Задача: эндпоинты для сбора данных калибровки AI-анализа техники
 
 ## Сервер
-`http://144.31.189.154:8080` (NestJS + TypeORM + PostgreSQL, тот же backend что и в
+`http://95.81.72.98:8080` (NestJS + TypeORM + PostgreSQL, тот же backend что и в
 `backend_fcm_payload_prompt.md`)
 
 ## Контекст

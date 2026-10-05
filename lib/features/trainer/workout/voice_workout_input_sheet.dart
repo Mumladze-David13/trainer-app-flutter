@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import '../../../core/models/models.dart';
 import '../../../core/services/auth_provider.dart';
+import '../../ai/ai_error_text.dart';
 
 // Результат одной распознанной строки — уже готов к превращению в _ExRow
 // в workout_editor_screen.dart.
@@ -139,7 +140,7 @@ class _VoiceWorkoutInputSheetState extends State<_VoiceWorkoutInputSheet> {
         _errorText = e.response?.statusCode == 403
             ? 'Исчерпан лимит AI-запросов на этот месяц.'
             : 'Сервер сейчас не может распознать запись. '
-                'Попробуйте ещё раз или добавьте упражнения вручную.';
+                'Попробуйте ещё раз или добавьте упражнения вручную.\n${aiErrorDetail(e)}';
       });
     } catch (_) {
       setState(() {
@@ -170,7 +171,7 @@ class _VoiceWorkoutInputSheetState extends State<_VoiceWorkoutInputSheet> {
         _errorText = e.response?.statusCode == 403
             ? 'Исчерпан лимит AI-запросов на этот месяц.'
             : 'Сервер сейчас не может распознать текст. '
-                'Добавьте упражнения вручную кнопкой «Добавить».';
+                'Добавьте упражнения вручную кнопкой «Добавить».\n${aiErrorDetail(e)}';
       });
     } catch (_) {
       setState(() {

@@ -10,7 +10,7 @@ import '../models/photo_models.dart';
 
 const String baseUrl = kIsWeb
     ? 'https://swell-haste-lucrative.ngrok-free.dev/api'
-    : 'http://144.31.189.154:8080/api';
+    : 'http://95.81.72.98:8080/api';
 
 class ApiService {
   late final Dio _dio;
@@ -296,10 +296,8 @@ class ApiService {
     return SoloProfile.fromJson(res.data);
   }
 
-  static final _soloLongTimeout = Options(receiveTimeout: const Duration(seconds: 30));
-
   Future<Map<String, dynamic>> generateSoloProgram() async {
-    final res = await _dio.post('/solo/generate-program', options: _soloLongTimeout);
+    final res = await _dio.post('/solo/generate-program', options: _aiGenerateTimeout);
     return res.data;
   }
 
@@ -392,13 +390,18 @@ class ApiService {
   }
 
   // AI
+  // Генерация целой программы занимает у модели заметно дольше дефолтных
+  // 10 с (и дольше 30 с у разбора еды) — иначе клиент рвёт соединение по
+  // таймауту раньше, чем бэкенд успевает ответить.
+  static final _aiGenerateTimeout = Options(receiveTimeout: const Duration(seconds: 90));
+
   Future<Map<String, dynamic>> aiGenerateProgram(Map<String, dynamic> data) async {
-    final res = await _dio.post('/ai/generate-program', data: data);
+    final res = await _dio.post('/ai/generate-program', data: data, options: _aiGenerateTimeout);
     return res.data;
   }
 
   Future<void> aiSaveProgram(Map<String, dynamic> data) async {
-    await _dio.post('/ai/save-program', data: data);
+    await _dio.post('/ai/save-program', data: data, options: _aiLongTimeout);
   }
 
   Future<Map<String, dynamic>> aiGetUsage() async {
@@ -409,26 +412,16 @@ class ApiService {
   static final _aiLongTimeout = Options(receiveTimeout: const Duration(seconds: 30));
 
   Future<Map<String, dynamic>> aiParseMeal(String text, {String? mealType}) async {
-    try {
-      final res = await _dio.post('/ai/parse-meal', data: {
-        'text': text,
-        if (mealType != null) 'mealType': mealType,
-      }, options: _aiLongTimeout);
-      return res.data;
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 403) rethrow;
-      // TEMP STUB: /ai/parse-meal is deployed but returns 500 because
-      // ANTHROPIC_API_KEY isn't set on the server yet (see
-      // backend_nutrition_ai_apikey_prompt.md). Falls back to a rough local
-      // estimate so the review flow can be evaluated end-to-end; remove this
-      // catch once the backend key is fixed.
-      return _mockParseMeal(text);
-    }
+    final res = await _dio.post('/ai/parse-meal', data: {
+      'text': text,
+      if (mealType != null) 'mealType': mealType,
+    }, options: _aiLongTimeout);
+    return res.data;
   }
 
   // Голосовой набор тренировки: свободный текст (расшифровка речи) → список
   // распознанных упражнений. Бэкенд-эндпоинт может быть ещё не задеплоен —
-  // ошибку намеренно не глотаем как aiParseMeal, а даём вызывающему коду
+  // ошибку намеренно не глотаем, а даём вызывающему коду
   // (voice_workout_input_sheet.dart) показать понятное сообщение, чтобы не
   // подсовывать тренеру придуманные подходы/веса.
   Future<List<Map<String, dynamic>>> aiParseWorkout(String text) async {
@@ -460,136 +453,11 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> aiGenerateMealPlan(String clientId, {String? preferences}) async {
-    try {
-      final res = await _dio.post('/ai/generate-meal-plan', data: {
-        'clientId': clientId,
-        if (preferences != null && preferences.isNotEmpty) 'preferences': preferences,
-      }, options: _aiLongTimeout);
-      return res.data;
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 403) rethrow;
-      // TEMP STUB: same backend blocker as aiParseMeal above — see
-      // backend_nutrition_ai_apikey_prompt.md. Remove once fixed.
-      return _mockGenerateMealPlan();
-    }
-  }
-
-  static const Map<String, List<double>> _mockFoodMacros = {
-    'гречк': [132, 4.5, 25, 1.1],
-    'куриц': [165, 31, 0, 3.6],
-    'курин': [165, 31, 0, 3.6],
-    'рис': [130, 2.7, 28, 0.3],
-    'яйц': [155, 13, 1.1, 11],
-    'овсян': [88, 3, 15, 1.5],
-    'творог': [121, 18, 3, 5],
-    'банан': [89, 1.1, 23, 0.3],
-    'хлеб': [265, 9, 49, 3.2],
-    'молок': [60, 3.2, 4.8, 3.2],
-    'чай': [1, 0, 0.3, 0],
-    'кофе': [2, 0.3, 0, 0],
-    'сыр': [350, 25, 1.3, 27],
-    'яблок': [52, 0.3, 14, 0.2],
-    'картоф': [77, 2, 17, 0.1],
-    'макарон': [131, 5, 25, 1.1],
-    'салат': [15, 1.4, 2.9, 0.2],
-    'огур': [15, 0.7, 3.6, 0.1],
-    'помидор': [18, 0.9, 3.9, 0.2],
-    'лосос': [208, 20, 0, 13],
-    'йогурт': [61, 3.5, 4.7, 3.3],
-  };
-
-  static const List<double> _mockGenericFood = [180, 8, 18, 7];
-
-  Map<String, dynamic> _mockFoodItem(String name, double grams, [List<double>? macros]) {
-    final m = macros ?? _mockGenericFood;
-    return {
-      'name': name,
-      'amountGrams': grams,
-      'caloriesPer100g': m[0],
-      'proteinPer100g': m[1],
-      'carbsPer100g': m[2],
-      'fatPer100g': m[3],
-    };
-  }
-
-  Map<String, dynamic> _mockParseMeal(String text) {
-    final segments = text
-        .split(RegExp(r'[,;]| и |\n'))
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-    if (segments.isEmpty) segments.add(text.trim());
-
-    final items = segments.map((seg) {
-      final gramsMatch = RegExp(r'(\d+)\s*г').firstMatch(seg);
-      final grams = gramsMatch != null ? double.parse(gramsMatch.group(1)!) : 150.0;
-      final lower = seg.toLowerCase();
-      final macros = _mockFoodMacros.entries
-          .firstWhere((e) => lower.contains(e.key), orElse: () => const MapEntry('', _mockGenericFood))
-          .value;
-      final name = seg.replaceAll(RegExp(r'\d+\s*г'), '').trim();
-      return _mockFoodItem(name.isEmpty ? seg : name, grams, macros);
-    }).toList();
-
-    return {'items': items};
-  }
-
-  Map<String, dynamic> _mockGenerateMealPlan() {
-    final meals = [
-      {
-        'type': 'breakfast',
-        'time': '08:00',
-        'items': [
-          _mockFoodItem('Овсянка на молоке', 250, _mockFoodMacros['овсян']),
-          _mockFoodItem('Банан', 120, _mockFoodMacros['банан']),
-        ],
-      },
-      {
-        'type': 'lunch',
-        'time': '13:00',
-        'items': [
-          _mockFoodItem('Куриная грудка', 150, _mockFoodMacros['куриц']),
-          _mockFoodItem('Гречка', 150, _mockFoodMacros['гречк']),
-          _mockFoodItem('Огурец', 100, _mockFoodMacros['огур']),
-        ],
-      },
-      {
-        'type': 'snack',
-        'time': '16:00',
-        'items': [
-          _mockFoodItem('Творог', 150, _mockFoodMacros['творог']),
-        ],
-      },
-      {
-        'type': 'dinner',
-        'time': '19:00',
-        'items': [
-          _mockFoodItem('Лосось', 150, _mockFoodMacros['лосос']),
-          _mockFoodItem('Салат овощной', 150, _mockFoodMacros['салат']),
-        ],
-      },
-    ];
-
-    double totalCal = 0, totalP = 0, totalC = 0, totalF = 0;
-    for (final meal in meals) {
-      for (final it in (meal['items'] as List).cast<Map<String, dynamic>>()) {
-        final grams = it['amountGrams'] as double;
-        totalCal += (it['caloriesPer100g'] as double) * grams / 100;
-        totalP += (it['proteinPer100g'] as double) * grams / 100;
-        totalC += (it['carbsPer100g'] as double) * grams / 100;
-        totalF += (it['fatPer100g'] as double) * grams / 100;
-      }
-    }
-
-    return {
-      'meals': meals,
-      'totals': {
-        'calories': totalCal,
-        'protein': totalP,
-        'carbs': totalC,
-        'fat': totalF,
-      },
-    };
+    final res = await _dio.post('/ai/generate-meal-plan', data: {
+      'clientId': clientId,
+      if (preferences != null && preferences.isNotEmpty) 'preferences': preferences,
+    }, options: _aiLongTimeout);
+    return res.data;
   }
 
   Future<void> aiSaveMealPlan(Map<String, dynamic> data) async {

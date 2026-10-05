@@ -22,7 +22,7 @@ model: claude-sonnet-4-6
 - Flutter 3.19, Dart 3.3
 - Provider для состояния
 - Dio для HTTP запросов
-- Base URL: http://144.31.189.154:8080/api
+- Base URL: http://95.81.72.98:8080/api
 
 ## Структура AI функционала
 

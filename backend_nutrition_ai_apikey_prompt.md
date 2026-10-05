@@ -1,7 +1,7 @@
 # Задача: включить ANTHROPIC_API_KEY на проде для nutrition-AI эндпоинтов
 
 ## Сервер
-`http://144.31.189.154:8080` (NestJS + TypeORM + PostgreSQL, тот же backend,
+`http://95.81.72.98:8080` (NestJS + TypeORM + PostgreSQL, тот же backend,
 что и в остальных `backend_*_prompt.md`)
 
 ## Статус на 2026-08-04
@@ -54,7 +54,7 @@
 4. **Проверить, что фикс сработал**, до того как звать меня обратно на
    ручное тестирование:
    ```bash
-   curl -X POST http://144.31.189.154:8080/api/ai/parse-meal \
+   curl -X POST http://95.81.72.98:8080/api/ai/parse-meal \
      -H "Authorization: Bearer <валидный_токен>" \
      -H "Content-Type: application/json" \
      -d '{"text": "гречка с курицей 250г"}'
