@@ -165,10 +165,13 @@ class _AiMealPlanScreenState extends State<AiMealPlanScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('AI-меню на день',
-                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                      Text(_dateFmt.format(widget.date),
-                          style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                      Text('Меню на ${_dateFmt.format(widget.date)}',
+                          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      const Text(
+                          'AI подберёт завтрак, обед, ужин и перекус под вашу норму КБЖУ. '
+                          'Вы проверите меню и сохраните его в дневник — потом любой продукт можно изменить или удалить.',
+                          style: TextStyle(color: Colors.white70, fontSize: 13)),
                     ],
                   ),
                 ),
@@ -196,7 +199,7 @@ class _AiMealPlanScreenState extends State<AiMealPlanScreen> {
                 'Б${calc.macros.protein.round()} Ж${calc.macros.fat.round()} У${calc.macros.carbs.round()}'),
           ],
           const SizedBox(height: 20),
-          const Text('Пожелания', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+          const Text('Пожелания (необязательно)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           TextField(
             controller: _preferencesCtrl,
@@ -212,7 +215,7 @@ class _AiMealPlanScreenState extends State<AiMealPlanScreen> {
             child: ElevatedButton.icon(
               onPressed: _generate,
               icon: const Icon(Icons.auto_awesome),
-              label: const Text('Сгенерировать меню'),
+              label: const Text('Составить меню'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF8B0000),
                 foregroundColor: Colors.white,

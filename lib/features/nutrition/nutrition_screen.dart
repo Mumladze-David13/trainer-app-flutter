@@ -1,4 +1,5 @@
 import 'dart:math' show pi;
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -42,14 +43,32 @@ class _NutritionScreenState extends State<NutritionScreen>
     super.dispose();
   }
 
+  /// The trainer edits a client's profile; a SOLO user edits their own.
+  /// A regular client's profile is managed by their trainer.
+  bool get _isSelf =>
+      context.read<AuthProvider>().user?.id == widget.clientId;
+
+  bool get _canEdit =>
+      widget.isTrainer || (_isSelf && context.read<AuthProvider>().isSolo);
+
   List<Widget> get _tabs => const [
     Tab(icon: Icon(Icons.person_outline), text: 'Профиль'),
     Tab(icon: Icon(Icons.menu_book_outlined), text: 'Дневник'),
   ];
 
   List<Widget> get _tabViews => [
-    _ProfileTab(clientId: widget.clientId, isTrainer: widget.isTrainer),
-    _DiaryTab(clientId: widget.clientId, isTrainer: widget.isTrainer),
+    _ProfileTab(
+      clientId: widget.clientId,
+      canEdit: _canEdit,
+      isSelf: _isSelf,
+      onCreated: () => _tabController.animateTo(1),
+    ),
+    _DiaryTab(
+      clientId: widget.clientId,
+      isTrainer: widget.isTrainer,
+      canEditProfile: _canEdit,
+      onOpenProfile: () => _tabController.animateTo(0),
+    ),
   ];
 
   @override
@@ -98,9 +117,17 @@ class _NutritionScreenState extends State<NutritionScreen>
 
 class _ProfileTab extends StatefulWidget {
   final String clientId;
-  final bool isTrainer;
+  final bool canEdit;
+  final bool isSelf;
+  /// Called after the profile is created for the first time.
+  final VoidCallback? onCreated;
 
-  const _ProfileTab({required this.clientId, required this.isTrainer});
+  const _ProfileTab({
+    required this.clientId,
+    required this.canEdit,
+    required this.isSelf,
+    this.onCreated,
+  });
 
   @override
   State<_ProfileTab> createState() => _ProfileTabState();
@@ -147,7 +174,8 @@ class _ProfileTabState extends State<_ProfileTab> {
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _data = null);
+      // Профиля ещё нет — тому, кто может его создать, сразу показываем форму.
+      if (mounted) setState(() { _data = null; _editing = widget.canEdit; });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -164,6 +192,16 @@ class _ProfileTabState extends State<_ProfileTab> {
   }
 
   Future<void> _save() async {
+    final age = int.tryParse(_ageCtrl.text.trim());
+    final weight = double.tryParse(_weightCtrl.text.trim().replaceAll(',', '.'));
+    final height = double.tryParse(_heightCtrl.text.trim().replaceAll(',', '.'));
+    if (age == null || weight == null || height == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Укажите возраст, вес и рост')));
+      return;
+    }
+
+    final isFirstSave = _data == null;
     setState(() => _saving = true);
     final api = context.read<AuthProvider>().api;
     try {
@@ -172,9 +210,9 @@ class _ProfileTabState extends State<_ProfileTab> {
           : null;
       await api.saveNutritionProfile(widget.clientId, {
         'gender': _gender,
-        'age': int.tryParse(_ageCtrl.text) ?? 25,
-        'weightKg': double.tryParse(_weightCtrl.text.replaceAll(',', '.')) ?? 70.0,
-        'heightCm': double.tryParse(_heightCtrl.text.replaceAll(',', '.')) ?? 170.0,
+        'age': age,
+        'weightKg': weight,
+        'heightCm': height,
         'activityLevel': _activityLevel,
         'goal': _goal,
         if (weeklyChange != null) 'targetWeeklyChange': weeklyChange,
@@ -182,8 +220,19 @@ class _ProfileTabState extends State<_ProfileTab> {
       await _load();
       if (mounted) {
         setState(() => _editing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Профиль питания сохранён')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(isFirstSave
+              ? 'Норма рассчитана — теперь можно вести дневник питания'
+              : 'Профиль питания сохранён')));
+        if (isFirstSave && _data != null) widget.onCreated?.call();
+      }
+    } on DioException catch (e) {
+      if (mounted) {
+        final code = e.response?.statusCode;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(code == 403
+              ? 'Сервер не разрешает изменять этот профиль (403)'
+              : 'Ошибка сохранения${code != null ? ' ($code)' : ''}')));
       }
     } catch (_) {
       if (mounted) {
@@ -210,7 +259,7 @@ class _ProfileTabState extends State<_ProfileTab> {
             _ProfileInfoCard(profile: _data!.profile),
             const SizedBox(height: 16),
           ],
-          if (widget.isTrainer) ...[
+          if (widget.canEdit) ...[
             if (!_editing)
               ElevatedButton.icon(
                 onPressed: () => setState(() {
@@ -223,7 +272,12 @@ class _ProfileTabState extends State<_ProfileTab> {
                     : 'Редактировать профиль'),
               )
             else ...[
+              if (_data == null) ...[
+                _ProfileIntroCard(isSelf: widget.isSelf),
+                const SizedBox(height: 16),
+              ],
               _ProfileForm(
+                title: widget.isSelf ? 'Ваши параметры' : 'Параметры клиента',
                 gender: _gender,
                 ageCtrl: _ageCtrl,
                 weightCtrl: _weightCtrl,
@@ -237,20 +291,23 @@ class _ProfileTabState extends State<_ProfileTab> {
               ),
               const SizedBox(height: 20),
               Row(children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _saving ? null : () => setState(() => _editing = false),
-                    child: const Text('Отмена'),
+                // Без профиля отменять нечего — форма и есть пустое состояние.
+                if (_data != null) ...[
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _saving ? null : () => setState(() => _editing = false),
+                      child: const Text('Отмена'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
+                  const SizedBox(width: 12),
+                ],
                 Expanded(
                   child: ElevatedButton(
                     onPressed: _saving ? null : _save,
                     child: _saving
                       ? const SizedBox(width: 20, height: 20,
                           child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Сохранить'),
+                      : Text(_data == null ? 'Рассчитать норму' : 'Сохранить'),
                   ),
                 ),
               ]),
@@ -274,6 +331,47 @@ class _ProfileTabState extends State<_ProfileTab> {
 }
 
 // ─── Profile Sub-Widgets ─────────────────────────────────────────────────────
+
+class _ProfileIntroCard extends StatelessWidget {
+  final bool isSelf;
+
+  const _ProfileIntroCard({required this.isSelf});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.calculate_outlined, color: Color(0xFF8B0000), size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Рассчитаем норму питания',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  const SizedBox(height: 4),
+                  Text(
+                    isSelf
+                        ? 'Заполните параметры — мы посчитаем вашу дневную норму '
+                          'калорий и КБЖУ. После этого во вкладке «Дневник» можно '
+                          'добавлять еду вручную или составить меню с помощью AI.'
+                        : 'Заполните параметры клиента — мы посчитаем его дневную '
+                          'норму калорий и КБЖУ.',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _CalculationsCard extends StatelessWidget {
   final NutritionCalculations calculations;
@@ -374,6 +472,7 @@ class _ProfileInfoCard extends StatelessWidget {
 }
 
 class _ProfileForm extends StatelessWidget {
+  final String title;
   final String gender;
   final TextEditingController ageCtrl;
   final TextEditingController weightCtrl;
@@ -386,6 +485,7 @@ class _ProfileForm extends StatelessWidget {
   final ValueChanged<String> onGoalChanged;
 
   const _ProfileForm({
+    required this.title,
     required this.gender,
     required this.ageCtrl,
     required this.weightCtrl,
@@ -403,8 +503,8 @@ class _ProfileForm extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Параметры клиента',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        Text(title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
         const Text('Пол', style: TextStyle(fontSize: 13, color: Colors.grey)),
         const SizedBox(height: 8),
@@ -505,8 +605,15 @@ class _ProfileForm extends StatelessWidget {
 class _DiaryTab extends StatefulWidget {
   final String clientId;
   final bool isTrainer;
+  final bool canEditProfile;
+  final VoidCallback? onOpenProfile;
 
-  const _DiaryTab({required this.clientId, this.isTrainer = false});
+  const _DiaryTab({
+    required this.clientId,
+    this.isTrainer = false,
+    this.canEditProfile = false,
+    this.onOpenProfile,
+  });
 
   @override
   State<_DiaryTab> createState() => _DiaryTabState();
@@ -580,10 +687,152 @@ class _DiaryTabState extends State<_DiaryTab> {
     _load();
   }
 
+  /// Меню можно планировать на неделю вперёд.
+  static const _planAheadDays = 7;
+
+  DateTime get _lastDate => DateUtils.dateOnly(DateTime.now())
+      .add(const Duration(days: _planAheadDays));
+
+  bool get _canGoNext => DateUtils.dateOnly(_date).isBefore(_lastDate);
+
   void _nextDay() {
-    if (_date.isBefore(DateTime.now().subtract(const Duration(hours: 1)))) {
+    if (_canGoNext) {
       _date = _date.add(const Duration(days: 1));
       _load();
+    }
+  }
+
+  void _showAddOptions() {
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Как добавить еду?',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              ..._addOptions(onPicked: () => Navigator.pop(ctx)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Три способа наполнить дневник — общие для пустого состояния и шторки «Добавить».
+  List<Widget> _addOptions({VoidCallback? onPicked}) {
+    void run(VoidCallback action) {
+      onPicked?.call();
+      action();
+    }
+
+    return [
+      _AddOptionTile(
+        icon: Icons.search,
+        title: 'Добавить продукт вручную',
+        subtitle: 'Выберите приём пищи, найдите продукт в базе и укажите граммы',
+        onTap: () => run(_addFoodManually),
+      ),
+      const SizedBox(height: 8),
+      _AddOptionTile(
+        icon: Icons.edit_note,
+        title: 'Описать словами (AI)',
+        subtitle: 'Например: «овсянка с бананом и кофе» — AI посчитает КБЖУ',
+        onTap: () => run(_openAiQuickAdd),
+      ),
+      const SizedBox(height: 8),
+      _AddOptionTile(
+        icon: Icons.auto_awesome,
+        title: 'Составить меню на день (AI)',
+        subtitle: 'AI подберёт завтрак, обед, ужин и перекус под вашу норму',
+        onTap: () => run(_openAiMealPlan),
+      ),
+    ];
+  }
+
+  Future<void> _addFoodManually() async {
+    if (_mealPlanId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Сначала заполните профиль питания')));
+      return;
+    }
+
+    final type = await _pickMealType();
+    if (type == null || !mounted) return;
+
+    final mealId = await _ensureMeal(type);
+    if (mealId == null || !mounted) return;
+
+    showFoodSearchSheet(
+      context,
+      mealId: mealId,
+      onAdded: _load,
+      clientId: widget.clientId,
+    );
+  }
+
+  Future<String?> _pickMealType() {
+    final suggested = guessMealTypeForHour(DateTime.now().hour);
+    return showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text('В какой приём пищи?',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            ),
+            ...mealTypeLabels.entries.map((e) => ListTile(
+                  leading: Icon(mealTypeIcons[e.key], color: const Color(0xFF8B0000)),
+                  title: Text(e.value),
+                  trailing: e.key == suggested
+                      ? const Text('сейчас',
+                          style: TextStyle(fontSize: 12, color: Colors.grey))
+                      : const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.pop(ctx, e.key),
+                )),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Возвращает id приёма пищи этого типа за день, создавая его при необходимости.
+  Future<String?> _ensureMeal(String type) async {
+    MealData? findMeal() {
+      final meals = _summary?.meals.where((m) => m.type == type).toList() ?? [];
+      return meals.isEmpty ? null : meals.last;
+    }
+
+    final existing = findMeal();
+    if (existing != null) return existing.id;
+
+    final api = context.read<AuthProvider>().api;
+    try {
+      final createdId = await api.addMealToMealPlan(_mealPlanId!, type);
+      await _load();
+      return createdId ?? findMeal()?.id;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось создать приём пищи')));
+      }
+      return null;
     }
   }
 
@@ -614,74 +863,6 @@ class _DiaryTabState extends State<_DiaryTab> {
       ),
     );
     if (saved == true) _load();
-  }
-
-  void _showAddMeal() {
-    if (_mealPlanId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Создайте профиль питания перед добавлением приёмов пищи')));
-      return;
-    }
-
-    String selectedType = 'breakfast';
-    final timeCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          title: const Text('Приём пищи'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                value: selectedType,
-                decoration: const InputDecoration(labelText: 'Тип'),
-                items: mealTypeLabels.entries
-                    .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
-                    .toList(),
-                onChanged: (v) => setS(() => selectedType = v!),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: timeCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Время (необязательно)',
-                  hintText: '08:30',
-                ),
-                keyboardType: TextInputType.datetime,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Отмена'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(ctx);
-                final api = context.read<AuthProvider>().api;
-                try {
-                  await api.addMealToMealPlan(
-                    _mealPlanId!,
-                    selectedType,
-                    time: timeCtrl.text.trim().isNotEmpty ? timeCtrl.text.trim() : null,
-                  );
-                  _load();
-                } catch (_) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Ошибка добавления')));
-                  }
-                }
-              },
-              child: const Text('Добавить'),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _deleteItem(String itemId) async {
@@ -813,14 +994,16 @@ class _DiaryTabState extends State<_DiaryTab> {
 
   @override
   Widget build(BuildContext context) {
-    final isToday = DateUtils.isSameDay(_date, DateTime.now());
-    final dateLabel = isToday
+    final now = DateTime.now();
+    final dateLabel = DateUtils.isSameDay(_date, now)
         ? 'Сегодня'
-        : DateFormat('d MMMM yyyy', 'ru_RU').format(_date);
+        : DateUtils.isSameDay(_date, now.add(const Duration(days: 1)))
+            ? 'Завтра'
+            : DateFormat('d MMMM yyyy', 'ru_RU').format(_date);
 
     return Column(
       children: [
-        _buildDateNav(dateLabel, isToday),
+        _buildDateNav(dateLabel),
         Expanded(
           child: Stack(
             children: [
@@ -839,26 +1022,16 @@ class _DiaryTabState extends State<_DiaryTab> {
                             _MacrosCard(summary: _summary!),
                             const SizedBox(height: 12),
                           ],
-                          if (_summary == null || _summary!.meals.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 32),
-                              child: Column(
-                                children: [
-                                  Icon(Icons.restaurant_menu,
-                                      size: 48, color: Colors.grey.shade400),
-                                  const SizedBox(height: 12),
-                                  const Text(
-                                    'Нет приёмов пищи',
-                                    style: TextStyle(color: Colors.grey, fontSize: 15),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  const Text(
-                                    'Нажмите + чтобы добавить',
-                                    style: TextStyle(color: Colors.grey, fontSize: 13),
-                                  ),
-                                ],
+                          if (_summary == null || _summary!.meals.isEmpty) ...[
+                            const Padding(
+                              padding: EdgeInsets.fromLTRB(4, 8, 4, 12),
+                              child: Text(
+                                'На этот день пока ничего нет. Выберите, как добавить еду:',
+                                style: TextStyle(color: Colors.grey, fontSize: 14),
                               ),
-                            )
+                            ),
+                            ..._addOptions(),
+                          ]
                           else
                             ..._summary!.meals.map((meal) => Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
@@ -879,25 +1052,17 @@ class _DiaryTabState extends State<_DiaryTab> {
                         ],
                       ),
                     ),
-              Positioned(
-                right: 16,
-                bottom: 80,
-                child: FloatingActionButton.small(
-                  heroTag: 'ai-quick-add',
-                  tooltip: 'AI: что вы съели?',
-                  onPressed: _openAiQuickAdd,
-                  child: const Icon(Icons.auto_awesome),
+              if (!_loading && !_noProfile)
+                Positioned(
+                  right: 16,
+                  bottom: 16,
+                  child: FloatingActionButton.extended(
+                    heroTag: 'add-food',
+                    onPressed: _showAddOptions,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Добавить'),
+                  ),
                 ),
-              ),
-              Positioned(
-                right: 16,
-                bottom: 16,
-                child: FloatingActionButton(
-                  heroTag: 'add-meal',
-                  onPressed: _showAddMeal,
-                  child: const Icon(Icons.add),
-                ),
-              ),
             ],
           ),
         ),
@@ -905,7 +1070,7 @@ class _DiaryTabState extends State<_DiaryTab> {
     );
   }
 
-  Widget _buildDateNav(String label, bool isToday) {
+  Widget _buildDateNav(String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: BoxDecoration(
@@ -924,7 +1089,7 @@ class _DiaryTabState extends State<_DiaryTab> {
                   context: context,
                   initialDate: _date,
                   firstDate: DateTime(2024),
-                  lastDate: DateTime.now(),
+                  lastDate: _lastDate,
                 );
                 if (picked != null) {
                   _date = picked;
@@ -939,17 +1104,8 @@ class _DiaryTabState extends State<_DiaryTab> {
             ),
           ),
           IconButton(
-            icon: Icon(
-              Icons.chevron_right,
-              color: isToday ? Colors.grey.shade300 : null,
-            ),
-            onPressed: isToday ? null : _nextDay,
-          ),
-          IconButton(
-            icon: const Icon(Icons.restaurant_menu),
-            color: const Color(0xFF8B0000),
-            tooltip: 'AI-меню на этот день',
-            onPressed: _openAiMealPlan,
+            icon: const Icon(Icons.chevron_right),
+            onPressed: _canGoNext ? _nextDay : null,
           ),
         ],
       ),
@@ -957,22 +1113,73 @@ class _DiaryTabState extends State<_DiaryTab> {
   }
 
   Widget _buildNoProfile() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.no_meals, size: 64, color: Colors.grey),
-          SizedBox(height: 16),
-          Text('Профиль питания не настроен',
-              style: TextStyle(fontSize: 16, color: Colors.grey)),
-          SizedBox(height: 8),
-          Text('Обратитесь к тренеру',
-              style: TextStyle(color: Colors.grey)),
-        ],
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.no_meals, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text('Профиль питания не настроен',
+                style: TextStyle(fontSize: 16, color: Colors.grey)),
+            const SizedBox(height: 8),
+            if (widget.canEditProfile) ...[
+              const Text(
+                'Укажите рост, вес и цель — рассчитаем норму калорий, '
+                'и можно будет вести дневник',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: widget.onOpenProfile,
+                icon: const Icon(Icons.person_outline),
+                label: const Text('Заполнить профиль'),
+              ),
+            ] else
+              const Text('Обратитесь к тренеру',
+                  style: TextStyle(color: Colors.grey)),
+          ],
+        ),
       ),
     );
   }
 
+}
+
+// ─── Add Option Tile ──────────────────────────────────────────────────────────
+
+class _AddOptionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _AddOptionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFF8B0000).withOpacity(0.1),
+          child: Icon(icon, color: const Color(0xFF8B0000)),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
+    );
+  }
 }
 
 // ─── Calorie Circle Card ──────────────────────────────────────────────────────

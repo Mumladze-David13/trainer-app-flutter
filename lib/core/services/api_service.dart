@@ -480,13 +480,16 @@ class ApiService {
     return res.data as Map<String, dynamic>;
   }
 
-  Future<void> addMealToMealPlan(String mealPlanId, String type,
+  /// Returns the created meal's id when the backend includes it in the response.
+  Future<String?> addMealToMealPlan(String mealPlanId, String type,
       {String? time, String? notes}) async {
-    await _dio.post('/nutrition/meal-plan/$mealPlanId/meals', data: {
+    final res = await _dio.post('/nutrition/meal-plan/$mealPlanId/meals', data: {
       'type': type,
       if (time != null) 'time': time,
       if (notes != null) 'notes': notes,
     });
+    final data = res.data;
+    return data is Map ? data['id'] as String? : null;
   }
 
   Future<void> addFoodToMeal(String mealId, String foodItemId, double amountGrams) async {
