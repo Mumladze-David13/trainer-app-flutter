@@ -10,13 +10,11 @@ import 'ai_error_text.dart';
 class GenerateProgramScreen extends StatefulWidget {
   final String clientId;
   final String clientName;
-  final String seasonId;
 
   const GenerateProgramScreen({
     super.key,
     required this.clientId,
     required this.clientName,
-    required this.seasonId,
   });
 
   @override
@@ -29,6 +27,9 @@ class _GenerateProgramScreenState extends State<GenerateProgramScreen> {
   String _goal = 'gain_muscle';
   String _level = 'intermediate';
   int _daysPerWeek = 3;
+  // null — следует за «Дней в неделю», пока тренер не выбрал явно.
+  int? _workoutsCountOverride;
+  int get _workoutsCount => _workoutsCountOverride ?? _daysPerWeek;
   String _equipment = 'тренажёрный зал';
   final _notesCtrl = TextEditingController();
 
@@ -74,6 +75,7 @@ class _GenerateProgramScreenState extends State<GenerateProgramScreen> {
         'goal': _goal,
         'level': _level,
         'daysPerWeek': _daysPerWeek,
+        'workoutsCount': _workoutsCount,
         'equipment': _equipment,
         if (_notesCtrl.text.isNotEmpty) 'notes': _notesCtrl.text,
       });
@@ -166,10 +168,14 @@ class _GenerateProgramScreenState extends State<GenerateProgramScreen> {
 
     final api = context.read<AuthProvider>().api;
     try {
-      await api.aiSaveProgram({'seasonId': widget.seasonId, 'workouts': saveWorkouts});
+      // Сезон выбирает бэкенд: текущий, а переполнение — в новый «Сезон N».
+      final res = await api.aiSaveProgram({'clientId': widget.clientId, 'workouts': saveWorkouts});
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Программа сохранена в сезон')));
+        final newSeason = res['newSeason'] as Map<String, dynamic>?;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(newSeason != null
+                ? 'Часть тренировок не поместилась в текущий сезон — создан «${newSeason['name']}»'
+                : 'Программа сохранена в сезон')));
         Navigator.pop(context, true);
       }
     } catch (_) {
@@ -303,6 +309,32 @@ class _GenerateProgramScreenState extends State<GenerateProgramScreen> {
           ),
           const SizedBox(height: 16),
 
+          _sectionTitle('Сколько тренировок создать'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [1, 2, 3, 4, 5, 6, 7]
+                .map((n) => GestureDetector(
+                      onTap: () => setState(() => _workoutsCountOverride = n),
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: _workoutsCount == n
+                            ? const Color(0xFF8B0000)
+                            : Colors.grey.shade200,
+                        child: Text(
+                          '$n',
+                          style: TextStyle(
+                            color: _workoutsCount == n ? Colors.white : Colors.black87,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 16),
+
           _sectionTitle('Оборудование'),
           const SizedBox(height: 8),
           Wrap(
@@ -319,13 +351,13 @@ class _GenerateProgramScreenState extends State<GenerateProgramScreen> {
           ),
           const SizedBox(height: 16),
 
-          _sectionTitle('Дополнительные пожелания'),
+          _sectionTitle('Ограничения и пожелания'),
           const SizedBox(height: 8),
           TextField(
             controller: _notesCtrl,
             maxLines: 3,
             decoration: const InputDecoration(
-              hintText: 'Например: избегать упражнений на спину, фокус на ноги...',
+              hintText: 'Например: болит левое плечо, фокус на ноги...',
               border: OutlineInputBorder(),
             ),
           ),

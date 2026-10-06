@@ -296,8 +296,10 @@ class ApiService {
     return SoloProfile.fromJson(res.data);
   }
 
-  Future<Map<String, dynamic>> generateSoloProgram() async {
-    final res = await _dio.post('/solo/generate-program', options: _aiGenerateTimeout);
+  Future<Map<String, dynamic>> generateSoloProgram({int? workoutsCount}) async {
+    final res = await _dio.post('/solo/generate-program',
+        data: {if (workoutsCount != null) 'workoutsCount': workoutsCount},
+        options: _aiGenerateTimeout);
     return res.data;
   }
 
@@ -400,8 +402,9 @@ class ApiService {
     return res.data;
   }
 
-  Future<void> aiSaveProgram(Map<String, dynamic> data) async {
-    await _dio.post('/ai/save-program', data: data, options: _aiLongTimeout);
+  Future<Map<String, dynamic>> aiSaveProgram(Map<String, dynamic> data) async {
+    final res = await _dio.post('/ai/save-program', data: data, options: _aiLongTimeout);
+    return res.data is Map<String, dynamic> ? res.data : <String, dynamic>{};
   }
 
   Future<Map<String, dynamic>> aiGetUsage() async {

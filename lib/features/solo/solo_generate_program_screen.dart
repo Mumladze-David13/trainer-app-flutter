@@ -6,7 +6,7 @@ import '../../core/services/auth_provider.dart';
 import '../ai/ai_error_text.dart';
 
 // Одношаговая AI-генерация для SOLO: POST /solo/generate-program сразу
-// создаёт сезон и занятия на бэке (в отличие от тренерского
+// добавляет занятия в текущий сезон (новый — только при переполнении) (в отличие от тренерского
 // /ai/generate-program + /ai/save-program). Пока на проде не настроен ключ
 // AI-провайдера, эндпоинт может вернуть 500 — обрабатываем как обычную
 // сетевую ошибку и предлагаем ручной путь, не блокируя пользователя
@@ -19,21 +19,34 @@ class SoloGenerateProgramScreen extends StatefulWidget {
 }
 
 class _SoloGenerateProgramScreenState extends State<SoloGenerateProgramScreen> {
-  bool _loading = true;
+  // Сначала выбор количества тренировок, генерация — по кнопке.
+  bool _picking = true;
+  bool _loading = false;
   bool _failed = false;
   Map<String, dynamic>? _result;
+  int _workoutsCount = 3;
 
   @override
   void initState() {
     super.initState();
-    _generate();
+    _loadDefaultCount();
+  }
+
+  // По умолчанию — daysPerWeek из SOLO-профиля (как и на бэке).
+  Future<void> _loadDefaultCount() async {
+    try {
+      final profile = await context.read<AuthProvider>().api.getSoloProfile();
+      if (mounted && profile != null) {
+        setState(() => _workoutsCount = profile.daysPerWeek.clamp(1, 7));
+      }
+    } catch (_) {}
   }
 
   Future<void> _generate() async {
-    setState(() { _loading = true; _failed = false; });
+    setState(() { _picking = false; _loading = true; _failed = false; });
     final api = context.read<AuthProvider>().api;
     try {
-      final result = await api.generateSoloProgram();
+      final result = await api.generateSoloProgram(workoutsCount: _workoutsCount);
       if (mounted) setState(() { _result = result; _loading = false; });
     } on DioException catch (e) {
       if (mounted) {
@@ -58,11 +71,66 @@ class _SoloGenerateProgramScreenState extends State<SoloGenerateProgramScreen> {
           onPressed: () => Navigator.of(context).pop(_result != null ? true : null),
         ),
       ),
-      body: _loading
+      body: _picking
+          ? _buildPicker()
+          : _loading
           ? _buildLoading()
           : _failed
               ? _buildFailed()
               : _buildResult(),
+    );
+  }
+
+  Widget _buildPicker() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Сколько тренировок создать',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text('Тренировки добавятся в текущий сезон после последней запланированной',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [1, 2, 3, 4, 5, 6, 7]
+                .map((n) => GestureDetector(
+                      onTap: () => setState(() => _workoutsCount = n),
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: _workoutsCount == n
+                            ? const Color(0xFF8B0000)
+                            : Colors.grey.shade200,
+                        child: Text(
+                          '$n',
+                          style: TextStyle(
+                            color: _workoutsCount == n ? Colors.white : Colors.black87,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _generate,
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Сгенерировать программу'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF8B0000),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -130,6 +198,7 @@ class _SoloGenerateProgramScreenState extends State<SoloGenerateProgramScreen> {
 
   Widget _buildResult() {
     final season = _result!['season'] as Map<String, dynamic>?;
+    final newSeason = _result!['newSeason'] as Map<String, dynamic>?;
     final workoutsCreated = _result!['workoutsCreated'] as int? ?? 0;
     final recommendations = _result!['recommendations'] as String? ?? '';
     final usage = _result!['usage'] as Map<String, dynamic>?;
@@ -152,12 +221,30 @@ class _SoloGenerateProgramScreenState extends State<SoloGenerateProgramScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      '${season?['name'] ?? 'Программа'} создана: $workoutsCreated занятий',
+                      '${season?['name'] ?? 'Сезон'}: добавлено $workoutsCreated занятий',
                       style: const TextStyle(color: Colors.green, fontWeight: FontWeight.w500),
                     ),
                   ),
                 ]),
               ),
+              if (newSeason != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                      color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+                  child: Row(children: [
+                    Icon(Icons.info_outline, color: Colors.blue.shade700, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Часть тренировок не поместилась в текущий сезон — создан «${newSeason['name']}»',
+                        style: TextStyle(color: Colors.blue.shade800, fontSize: 13),
+                      ),
+                    ),
+                  ]),
+                ),
+              ],
               if (usage != null) ...[
                 const SizedBox(height: 12),
                 Container(

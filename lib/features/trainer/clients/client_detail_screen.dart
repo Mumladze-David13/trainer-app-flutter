@@ -356,20 +356,14 @@ class _TrainingsPageState extends State<_TrainingsPage> {
                           const Spacer(),
                           ElevatedButton.icon(
                             onPressed: () async {
-                              if (_data!.seasons.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text(
-                                            'Сначала создайте сезон')));
-                                return;
-                              }
+                              // Сезон для AI-программы бэкенд выбирает сам
+                              // (/ai/save-program по clientId).
                               final result = await Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => GenerateProgramScreen(
                                     clientId: widget.clientId,
                                     clientName: widget.clientName,
-                                    seasonId: _data!.seasons.first.id,
                                   ),
                                 ),
                               );
