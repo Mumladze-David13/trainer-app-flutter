@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/services/auth_provider.dart';
 import '../dashboard/dashboard_screen.dart';
+import '../../core/constants/feature_flags.dart';
 
 class _RoleOption {
   final String value;
@@ -192,7 +193,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         )).toList(),
                       ),
-                      if (_selectedRole == 'TRAINER_CLIENT') ...[
+                      if (kShowPaymentPrompts && _selectedRole == 'TRAINER_CLIENT') ...[
                         const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.all(12),

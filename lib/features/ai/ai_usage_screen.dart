@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/services/auth_provider.dart';
+import '../../core/constants/feature_flags.dart';
 
 class AiUsageScreen extends StatefulWidget {
   const AiUsageScreen({super.key});
@@ -192,6 +193,7 @@ class _AiUsageScreenState extends State<AiUsageScreen> {
           ),
         ),
 
+        if (kShowPaymentPrompts) ...[
         const SizedBox(height: 12),
 
         SizedBox(
@@ -204,6 +206,7 @@ class _AiUsageScreenState extends State<AiUsageScreen> {
                 backgroundColor: planColor, foregroundColor: Colors.white),
           ),
         ),
+        ],
 
         if (recentHistory.isNotEmpty) ...[
           const SizedBox(height: 16),

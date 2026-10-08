@@ -7,6 +7,7 @@ import '../../core/widgets/app_scaffold.dart';
 import '../ai/ai_usage_screen.dart';
 import '../trainer/gyms/gyms_screen.dart';
 import '../subscription/subscription_screen.dart';
+import '../../core/constants/feature_flags.dart';
 
 // Оплата пока не принимается — вернуть true, когда подключим ЮKassa в проде
 const _showSubscription = false;
@@ -234,7 +235,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     )).toList(),
                   ),
-                  if (_selectedRole == 'TRAINER_CLIENT') ...[
+                  if (kShowPaymentPrompts && _selectedRole == 'TRAINER_CLIENT') ...[
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(12),

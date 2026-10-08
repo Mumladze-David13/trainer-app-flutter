@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/services/auth_provider.dart';
 import 'ai_usage_screen.dart';
 import 'ai_error_text.dart';
+import '../../core/constants/feature_flags.dart';
 
 class GenerateProgramScreen extends StatefulWidget {
   final String clientId;
@@ -113,10 +114,13 @@ class _GenerateProgramScreenState extends State<GenerateProgramScreen> {
             const Text('Лимит токенов исчерпан',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text('Перейдите на тариф выше для продолжения',
+            const Text(kShowPaymentPrompts
+                ? 'Перейдите на тариф выше для продолжения'
+                : 'Лимит AI-запросов на этот месяц исчерпан',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 16),
+            if (kShowPaymentPrompts)
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
@@ -445,6 +449,7 @@ class _GenerateProgramScreenState extends State<GenerateProgramScreen> {
                                 style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: Colors.orange)),
+                            if (kShowPaymentPrompts)
                             TextButton(
                               onPressed: () => Navigator.push(
                                   context,

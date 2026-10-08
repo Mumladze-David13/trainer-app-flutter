@@ -1,6 +1,7 @@
 // lib/features/ai/ai_limit_bottom_sheet.dart
 import 'package:flutter/material.dart';
 import 'ai_usage_screen.dart';
+import '../../core/constants/feature_flags.dart';
 
 /// Shown when an AI request comes back with 403 (monthly token limit reached).
 /// Mirrors the bottom sheet used by GenerateProgramScreen.
@@ -19,10 +20,13 @@ void showAiLimitBottomSheet(BuildContext context) {
           const Text('Лимит токенов исчерпан',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          const Text('Перейдите на тариф выше для продолжения',
+          const Text(kShowPaymentPrompts
+              ? 'Перейдите на тариф выше для продолжения'
+              : 'Лимит AI-запросов на этот месяц исчерпан',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey)),
           const SizedBox(height: 16),
+          if (kShowPaymentPrompts)
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
