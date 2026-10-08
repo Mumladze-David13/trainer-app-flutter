@@ -22,6 +22,10 @@ const _oauthProviders = [
   _OAuthProvider('mailru', 'Mail.ru', 'M', Color(0xFF005FF9)),
 ];
 
+// Временно скрываем вход через Google/VK/Mail.ru — только email + пароль.
+// Вернуть кнопки: поставить true.
+const _showOAuthLogin = false;
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -193,6 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   style: TextStyle(fontSize: 16)),
                         ),
                       ),
+                      if (_showOAuthLogin) ...[
                       const SizedBox(height: 20),
                       Row(
                         children: [
@@ -231,6 +236,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         )).toList(),
                       ),
+                      ],
                       const SizedBox(height: 16),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
