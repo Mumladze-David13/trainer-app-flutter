@@ -12,6 +12,14 @@ class PoseAnalysisResult {
   // aren't scored yet — collected so real thresholds can be picked later
   // from logged data instead of guessed upfront.
   final Map<String, double> calibrationMetrics;
+  // Angles were measured on the person's right side (the side facing the
+  // camera) instead of the left — the overlay needs it to put angle labels
+  // on the right joints.
+  final bool measuredRightSide;
+  // Verdict for the most recently completed rep, if any.
+  final RepRecord? lastRep;
+  // Body not visible well enough to measure anything in this frame.
+  final bool bodyNotVisible;
 
   PoseAnalysisResult({
     required this.exerciseType,
@@ -22,6 +30,30 @@ class PoseAnalysisResult {
     required this.repCount,
     required this.angles,
     this.calibrationMetrics = const {},
+    this.measuredRightSide = false,
+    this.lastRep,
+    this.bodyNotVisible = false,
+  });
+}
+
+/// One completed repetition and what was wrong with it. Form is judged per
+/// rep (at its deepest point / over its whole range), not per frame — a
+/// single frame mid-movement can't tell whether the rep was deep enough.
+class RepRecord {
+  final int index;
+  final double score;
+  final List<String> issues;
+  final List<String> tips;
+  // Most extreme value of the main joint angle reached during the rep
+  // (deepest knee angle for squats, smallest elbow angle for push-ups...).
+  final double peakAngle;
+
+  RepRecord({
+    required this.index,
+    required this.score,
+    required this.issues,
+    required this.tips,
+    required this.peakAngle,
   });
 }
 

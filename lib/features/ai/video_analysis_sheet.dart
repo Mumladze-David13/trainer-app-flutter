@@ -5,11 +5,16 @@
 // AI-анализ (video_pose_analyzer.dart — видео никуда не отправляется) и
 // удаление файла.
 import 'dart:io';
+import 'package:camera/camera.dart' show CameraLensDirection;
 import 'package:flutter/material.dart';
+import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart'
+    show InputImageRotation;
 import 'package:video_player/video_player.dart';
 import '../../core/models/pose_analysis.dart';
 import '../../core/services/video_pose_analyzer.dart';
 import '../../core/services/workout_video_library.dart';
+import 'pose_overlay_painter.dart';
+import 'pose_session_summary.dart';
 
 class VideoAnalysisSheet extends StatefulWidget {
   final String videoPath;
@@ -35,6 +40,7 @@ class _VideoAnalysisSheetState extends State<VideoAnalysisSheet> {
   bool _isAnalyzing = false;
   double _progress = 0;
   VideoAnalysisReport? _report;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -49,6 +55,7 @@ class _VideoAnalysisSheetState extends State<VideoAnalysisSheet> {
   @override
   void dispose() {
     _videoController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -83,6 +90,16 @@ class _VideoAnalysisSheetState extends State<VideoAnalysisSheet> {
             content: Text('Не удалось прочитать видео для анализа')));
       }
       setState(() => _report = report);
+      // Отчёт рисуется под видео и выбором упражнения — прокручиваем к нему,
+      // иначе на высоком вертикальном видео его просто не видно.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOut,
+        );
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -116,12 +133,6 @@ class _VideoAnalysisSheetState extends State<VideoAnalysisSheet> {
     widget.onDeleted();
   }
 
-  Color _scoreColor(double score) {
-    if (score >= 80) return Colors.green;
-    if (score >= 60) return Colors.orange;
-    return Colors.red;
-  }
-
   @override
   Widget build(BuildContext context) {
     final maxHeight = MediaQuery.of(context).size.height * 0.92;
@@ -147,10 +158,16 @@ class _VideoAnalysisSheetState extends State<VideoAnalysisSheet> {
           ),
           Flexible(
             child: SingleChildScrollView(
+              controller: _scrollController,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
-                  Container(
+                  // Вертикальное видео во всю ширину занимало почти весь
+                  // экран, и прогресс/отчёт анализа уезжали за его край.
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.45),
+                    child: Container(
                     decoration: BoxDecoration(
                       color: Colors.black,
                       borderRadius: BorderRadius.circular(12),
@@ -169,6 +186,9 @@ class _VideoAnalysisSheetState extends State<VideoAnalysisSheet> {
                             const Center(
                                 child: CircularProgressIndicator(
                                     color: Colors.white)),
+                          if (_report != null &&
+                              _report!.frameSize != Size.zero)
+                            Positioned.fill(child: _buildSkeletonOverlay(_report!)),
                           GestureDetector(
                             onTap: _isInitialized ? _togglePlay : null,
                             child: AnimatedOpacity(
@@ -192,6 +212,7 @@ class _VideoAnalysisSheetState extends State<VideoAnalysisSheet> {
                         ],
                       ),
                     ),
+                  ),
                   ),
                   const SizedBox(height: 16),
                   const Align(
@@ -293,7 +314,11 @@ class _VideoAnalysisSheetState extends State<VideoAnalysisSheet> {
                     icon: const Icon(Icons.auto_awesome,
                         color: Colors.white, size: 20),
                     label: Text(
-                      _report == null ? 'Анализировать' : 'Анализировать заново',
+                      _isAnalyzing
+                          ? 'Анализ… ${(_progress * 100).round()}%'
+                          : (_report == null
+                              ? 'Анализировать'
+                              : 'Анализировать заново'),
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
@@ -306,80 +331,60 @@ class _VideoAnalysisSheetState extends State<VideoAnalysisSheet> {
     );
   }
 
-  Widget _buildReport(VideoAnalysisReport report) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.4),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text('Повторений: ',
-                  style: TextStyle(color: Colors.white70, fontSize: 13)),
-              Text('${report.repCount}',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold)),
-              const Spacer(),
-              const Text('Техника: ',
-                  style: TextStyle(color: Colors.white70, fontSize: 13)),
-              Text('${report.avgFormScore.round()}%',
-                  style: TextStyle(
-                      color: _scoreColor(report.avgFormScore),
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold)),
-            ],
-          ),
-          if (report.framesAnalyzed == 0)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text(
-                'Человек не найден почти ни на одном кадре — переснимите '
-                'видео так, чтобы всё тело было видно в кадре.',
-                style: TextStyle(color: Colors.orange, fontSize: 12),
-              ),
-            )
-          else if (report.topIssues.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            const Text('Частые проблемы:',
-                style: TextStyle(color: Colors.white70, fontSize: 12)),
-            const SizedBox(height: 4),
-            ...report.topIssues.map((e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.warning_amber,
-                          color: Colors.orange, size: 14),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text('${e.key} (${e.value})',
-                            style: const TextStyle(
-                                color: Colors.orange, fontSize: 12)),
-                      ),
-                    ],
-                  ),
-                )),
-          ] else
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.green, size: 14),
-                  SizedBox(width: 4),
-                  Text('Явных проблем не найдено',
-                      style: TextStyle(color: Colors.green, fontSize: 12)),
-                ],
-              ),
+  // Скелет найденной позы поверх воспроизводимого видео: берётся кадр
+  // анализа, ближайший к текущей позиции плеера.
+  Widget _buildSkeletonOverlay(VideoAnalysisReport report) {
+    return IgnorePointer(
+      child: ValueListenableBuilder<VideoPlayerValue>(
+        valueListenable: _videoController,
+        builder: (_, value, __) {
+          final frame = report.frameAt(value.position.inMilliseconds);
+          if (frame?.pose == null) return const SizedBox.shrink();
+          return CustomPaint(
+            // Кадры уже повёрнуты как на экране и не отзеркалены — поэтому
+            // rotation0 + задняя камера = простое масштабирование координат.
+            painter: PoseOverlayPainter(
+              pose: frame!.pose!,
+              imageSize: report.frameSize,
+              rotation: InputImageRotation.rotation0deg,
+              cameraLensDirection: CameraLensDirection.back,
+              result: frame.result,
             ),
-        ],
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildReport(VideoAnalysisReport report) {
+    if (report.framesAnalyzed == 0) {
+      return const PoseSessionSummary(
+        reps: [],
+        emptyMessage: 'Человек не найден почти ни на одном кадре — переснимите '
+            'видео так, чтобы всё тело было видно в кадре.',
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Нажмите ▶ — скелет будет показан поверх видео',
+            style: TextStyle(color: Colors.white54, fontSize: 11)),
+        const SizedBox(height: 6),
+        PoseSessionSummary(
+          reps: report.reps,
+          emptyMessage: 'Человек найден, но ни одного полного повторения не '
+              'засчитано. Проверьте, что выбрано правильное упражнение и '
+              'ракурс камеры, и что в кадре видно всё движение.',
+          onRepTap: (i) {
+            if (i >= report.repEndTimesMs.length) return;
+            // Повтор длится ~1.5-3 с — отматываем немного назад от его конца.
+            final ms = (report.repEndTimesMs[i] - 2000).clamp(0, 1 << 31);
+            _videoController.seekTo(Duration(milliseconds: ms));
+            _videoController.play();
+            setState(() {});
+          },
+        ),
+      ],
     );
   }
 }

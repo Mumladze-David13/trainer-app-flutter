@@ -1,7 +1,7 @@
 // lib/features/ai/pose_analysis_screen.dart
 import 'dart:io';
 import 'package:flutter/foundation.dart'
-    show kDebugMode, kIsWeb, defaultTargetPlatform, TargetPlatform;
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
@@ -14,6 +14,7 @@ import '../../core/services/pose_input_image_converter.dart';
 import '../../core/services/workout_video_library.dart';
 import 'pose_data_collection_screen.dart';
 import 'pose_overlay_painter.dart';
+import 'pose_session_summary.dart';
 import 'video_library_screen.dart';
 import 'video_preview_sheet.dart';
 
@@ -190,10 +191,9 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
         setState(() => _lastPose = null);
       }
     } catch (e) {
-      if (kDebugMode) {
-        // ignore: avoid_print
-        print('Pose detection error: $e');
-      }
+      // if (kDebugMode) {
+      //   print('Pose detection error: $e');
+      // }
       if (mounted && _errorMessage == null) {
         setState(() => _errorMessage = 'Ошибка анализа: $e');
       }
@@ -203,6 +203,9 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
   }
 
   void _toggleAnalysis() {
+    final stopping = _isAnalyzing;
+    final reps = _analysisService.reps;
+    final sawPerson = _lastResult != null;
     setState(() {
       _isAnalyzing = !_isAnalyzing;
       _errorMessage = null;
@@ -212,6 +215,55 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
         _analysisService.resetReps();
       }
     });
+    if (stopping) _showSessionSummary(reps, sawPerson);
+  }
+
+  Future<void> _showSessionSummary(List<RepRecord> reps, bool sawPerson) {
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => ConstrainedBox(
+        constraints:
+            BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.8),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Итог подхода — ${_selectedExercise.nameRu}',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              PoseSessionSummary(
+                reps: reps,
+                emptyMessage: sawPerson
+                    ? 'Ни одного полного повторения не засчитано. Выполните '
+                        'движение на полную амплитуду так, чтобы всё тело было '
+                        'в кадре, и проверьте выбранный ракурс камеры.'
+                    : 'Человек в кадре не найден — отойдите от камеры, чтобы '
+                        'было видно всё тело.',
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1976D2)),
+                  child: const Text('Готово',
+                      style: TextStyle(color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _startRecording() async {
@@ -303,12 +355,6 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
     try {
       await File(videoPath).delete();
     } catch (_) {}
-  }
-
-  Color _scoreColor(double score) {
-    if (score >= 80) return Colors.green;
-    if (score >= 60) return Colors.orange;
-    return Colors.red;
   }
 
   @override
@@ -552,7 +598,7 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
                 // Rep counter
                 if (_isAnalyzing && _lastResult != null)
                   Positioned(
-                    top: 16,
+                    bottom: 16,
                     right: 16,
                     child: Container(
                       padding: const EdgeInsets.all(12),
@@ -646,6 +692,8 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
     switch (key) {
       case 'knee':
         return 'Колено';
+      case 'kneeRight':
+        return 'Колено (пр.)';
       case 'hip':
         return 'Таз';
       case 'elbow':
@@ -658,6 +706,7 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
   }
 
   Widget _buildResultOverlay(PoseAnalysisResult result) {
+    final rep = result.lastRep;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -667,34 +716,75 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Text('Техника:',
-                  style: TextStyle(color: Colors.white70, fontSize: 13)),
-              const SizedBox(width: 8),
-              Text(
-                '${result.formScore.round()}%',
-                style: TextStyle(
-                    color: _scoreColor(result.formScore),
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: result.formScore / 100,
-                    backgroundColor: Colors.grey[700],
-                    color: _scoreColor(result.formScore),
-                    minHeight: 6,
+          // Вердикт по последнему завершённому повтору — глубина/амплитуда
+          // оцениваются только целиком по повтору, не по отдельному кадру.
+          if (rep == null)
+            const Text('Выполните повтор — после него появится оценка',
+                style: TextStyle(color: Colors.white70, fontSize: 13))
+          else ...[
+            Row(
+              children: [
+                Text('Повтор ${rep.index}:',
+                    style:
+                        const TextStyle(color: Colors.white70, fontSize: 13)),
+                const SizedBox(width: 8),
+                Text(
+                  '${rep.score.round()}%',
+                  style: TextStyle(
+                      color: poseScoreColor(rep.score),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: rep.score / 100,
+                      backgroundColor: Colors.grey[700],
+                      color: poseScoreColor(rep.score),
+                      minHeight: 6,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          if (result.angles.isNotEmpty) ...[
+              ],
+            ),
             const SizedBox(height: 4),
+            if (rep.issues.isEmpty)
+              const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 14),
+                  SizedBox(width: 4),
+                  Text('Отличный повтор!',
+                      style: TextStyle(color: Colors.green, fontSize: 12)),
+                ],
+              )
+            else
+              ...List.generate(
+                  rep.issues.length.clamp(0, 2),
+                  (i) => Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.warning_amber,
+                                color: Colors.orange, size: 14),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                i < rep.tips.length
+                                    ? '${rep.issues[i]} — ${rep.tips[i]}'
+                                    : rep.issues[i],
+                                style: const TextStyle(
+                                    color: Colors.orange, fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )),
+          ],
+          if (result.angles.isNotEmpty) ...[
+            const SizedBox(height: 6),
             Wrap(
               spacing: 12,
               children: result.angles.entries
@@ -706,48 +796,26 @@ class _PoseAnalysisScreenState extends State<PoseAnalysisScreen> {
                   .toList(),
             ),
           ],
+          // Проблемы позы прямо сейчас (или "не вижу тело").
           if (result.issues.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            ...result.issues.take(2).map((issue) => Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.warning_amber,
-                          color: Colors.orange, size: 14),
-                      const SizedBox(width: 4),
-                      Expanded(
-                          child: Text(issue,
-                              style: const TextStyle(
-                                  color: Colors.orange, fontSize: 12))),
-                    ],
-                  ),
-                )),
-          ],
-          if (result.tips.isNotEmpty) ...[
             const SizedBox(height: 4),
-            ...result.tips.take(1).map((tip) => Row(
+            ...result.issues.take(2).map((issue) => Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.lightbulb_outline,
-                        color: Colors.yellow, size: 14),
+                    Icon(
+                        result.bodyNotVisible
+                            ? Icons.visibility_off
+                            : Icons.error_outline,
+                        color: Colors.redAccent,
+                        size: 14),
                     const SizedBox(width: 4),
                     Expanded(
-                        child: Text(tip,
+                        child: Text('Сейчас: $issue',
                             style: const TextStyle(
-                                color: Colors.yellow, fontSize: 12))),
+                                color: Colors.redAccent, fontSize: 12))),
                   ],
                 )),
           ],
-          if (result.issues.isEmpty)
-            const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 14),
-                SizedBox(width: 4),
-                Text('Отличная техника!',
-                    style: TextStyle(color: Colors.green, fontSize: 12)),
-              ],
-            ),
         ],
       ),
     );

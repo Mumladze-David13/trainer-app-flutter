@@ -3,8 +3,11 @@
 // Локальный AI-анализ уже записанного видео: не требует бэкенда и никуда не
 // отправляет само видео — только семплирует кадры (video_thumbnail),
 // прогоняет их через тот же ML Kit + PoseAnalysisService, что и живой
-// анализ, и агрегирует результат по всему ролику.
+// анализ, и собирает результат по повторениям. Позы всех кадров
+// сохраняются, чтобы при воспроизведении рисовать поверх видео скелет.
 import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/painting.dart' show Size;
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
@@ -12,29 +15,67 @@ import 'package:video_thumbnail/video_thumbnail.dart' as vt;
 import '../models/pose_analysis.dart';
 import 'pose_analysis_service.dart';
 
+/// Один проанализированный кадр ролика. [pose] == null — человек не найден.
+class VideoPoseFrame {
+  final int timeMs;
+  final Pose? pose;
+  final PoseAnalysisResult? result;
+
+  VideoPoseFrame({required this.timeMs, this.pose, this.result});
+}
+
 class VideoAnalysisReport {
-  final int repCount;
-  final double avgFormScore;
-  final double minFormScore;
+  final List<RepRecord> reps;
+  // Момент ролика, на котором закончился каждый повтор (для перемотки).
+  final List<int> repEndTimesMs;
+  final List<VideoPoseFrame> frames;
+  // Размер кадров, по которым считались координаты скелета (кадры уже
+  // повёрнуты так, как видео показывается на экране).
+  final Size frameSize;
+  final int sampleIntervalMs;
   final int framesAnalyzed;
   final int framesWithoutPerson;
-  // Проблема -> сколько кадров её показали, отсортировано по убыванию.
-  final List<MapEntry<String, int>> topIssues;
 
   VideoAnalysisReport({
-    required this.repCount,
-    required this.avgFormScore,
-    required this.minFormScore,
+    required this.reps,
+    required this.repEndTimesMs,
+    required this.frames,
+    required this.frameSize,
+    required this.sampleIntervalMs,
     required this.framesAnalyzed,
     required this.framesWithoutPerson,
-    required this.topIssues,
   });
+
+  int get repCount => reps.length;
+
+  /// Кадр, ближайший к моменту воспроизведения, или null если рядом нет.
+  VideoPoseFrame? frameAt(int positionMs) {
+    if (frames.isEmpty) return null;
+    var lo = 0;
+    var hi = frames.length - 1;
+    while (lo < hi) {
+      final mid = (lo + hi) ~/ 2;
+      if (frames[mid].timeMs < positionMs) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    var best = frames[lo];
+    if (lo > 0 &&
+        (frames[lo - 1].timeMs - positionMs).abs() <
+            (best.timeMs - positionMs).abs()) {
+      best = frames[lo - 1];
+    }
+    return (best.timeMs - positionMs).abs() <= sampleIntervalMs ? best : null;
+  }
 }
 
 class VideoPoseAnalyzer {
-  // Не больше ~120 семплов на ролик — иначе анализ пятиминутного видео
-  // занимает неоправданно долго на телефоне.
-  static const _maxSamples = 120;
+  // Не больше ~200 семплов на ролик — иначе анализ длинного видео
+  // занимает неоправданно долго на телефоне. Шаг не реже 150 мс, чтобы
+  // не пропускать нижнюю точку быстрых повторений.
+  static const _maxSamples = 200;
   static const _minIntervalMs = 150;
 
   Future<VideoAnalysisReport?> analyze({
@@ -46,8 +87,9 @@ class VideoPoseAnalyzer {
     final durationMs = await _readDurationMs(videoPath);
     if (durationMs == null || durationMs <= 0) return null;
 
-    final intervalMs =
-        durationMs / _maxSamples < _minIntervalMs ? _minIntervalMs : (durationMs / _maxSamples).ceil();
+    final intervalMs = (durationMs / _maxSamples).ceil() < _minIntervalMs
+        ? _minIntervalMs
+        : (durationMs / _maxSamples).ceil();
     final sampleTimes = <int>[
       for (var t = 0; t < durationMs; t += intervalMs) t,
     ];
@@ -63,12 +105,13 @@ class VideoPoseAnalyzer {
 
     var framesAnalyzed = 0;
     var framesWithoutPerson = 0;
-    var repCount = 0;
-    final scores = <double>[];
-    final issueCounts = <String, int>{};
+    final frames = <VideoPoseFrame>[];
+    final repEndTimesMs = <int>[];
+    Size? frameSize;
 
     try {
       for (var i = 0; i < sampleTimes.length; i++) {
+        final timeMs = sampleTimes[i];
         final framePath =
             '${tempDir.path}/vpa_frame_${DateTime.now().microsecondsSinceEpoch}.jpg';
         String? savedPath;
@@ -77,27 +120,29 @@ class VideoPoseAnalyzer {
             video: videoPath,
             thumbnailPath: framePath,
             imageFormat: vt.ImageFormat.JPEG,
-            timeMs: sampleTimes[i],
-            quality: 70,
+            timeMs: timeMs,
+            quality: 80,
           );
           if (savedPath == null) continue;
+          frameSize ??= await _readImageSize(savedPath);
 
           final poses =
               await detector.processImage(InputImage.fromFilePath(savedPath));
           if (poses.isEmpty) {
             framesWithoutPerson++;
+            frames.add(VideoPoseFrame(timeMs: timeMs));
             continue;
           }
 
+          final repsBefore = analysisService.reps.length;
           final result = analysisService.analyzePose(poses.first, exercise,
               viewMode: viewMode);
-          if (result == null) continue;
-          framesAnalyzed++;
-          repCount = result.repCount;
-          scores.add(result.formScore);
-          for (final issue in result.issues) {
-            issueCounts[issue] = (issueCounts[issue] ?? 0) + 1;
+          if (analysisService.reps.length > repsBefore) {
+            repEndTimesMs.add(timeMs);
           }
+          if (result != null && !result.bodyNotVisible) framesAnalyzed++;
+          frames.add(VideoPoseFrame(
+              timeMs: timeMs, pose: poses.first, result: result));
         } finally {
           if (savedPath != null) {
             try {
@@ -111,18 +156,34 @@ class VideoPoseAnalyzer {
       await detector.close();
     }
 
-    final topIssues = issueCounts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    // print('VideoPoseAnalyzer: samples=${sampleTimes.length} '
+    //     'analyzed=$framesAnalyzed noPerson=$framesWithoutPerson '
+    //     'reps=${analysisService.reps.length} frameSize=$frameSize');
 
     return VideoAnalysisReport(
-      repCount: repCount,
-      avgFormScore:
-          scores.isEmpty ? 0 : scores.reduce((a, b) => a + b) / scores.length,
-      minFormScore: scores.isEmpty ? 0 : scores.reduce((a, b) => a < b ? a : b),
+      reps: analysisService.reps,
+      repEndTimesMs: repEndTimesMs,
+      frames: frames,
+      frameSize: frameSize ?? Size.zero,
+      sampleIntervalMs: intervalMs,
       framesAnalyzed: framesAnalyzed,
       framesWithoutPerson: framesWithoutPerson,
-      topIssues: topIssues.take(5).toList(),
     );
+  }
+
+  Future<Size?> _readImageSize(String path) async {
+    try {
+      final codec =
+          await ui.instantiateImageCodec(await File(path).readAsBytes());
+      final frame = await codec.getNextFrame();
+      final size =
+          Size(frame.image.width.toDouble(), frame.image.height.toDouble());
+      frame.image.dispose();
+      codec.dispose();
+      return size;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<int?> _readDurationMs(String videoPath) async {

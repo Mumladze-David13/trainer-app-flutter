@@ -28,7 +28,7 @@ GoRouter createRouter(AuthProvider auth) => GoRouter(
     GoRoute(path: '/auth/register', builder: (_, __) => const RegisterScreen()),
     GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
     GoRoute(path: '/trainer/exercises', builder: (_, __) => const ExercisesScreen()),
-    GoRoute(path: '/trainer/clients', builder: (_, __) => const ClientsListScreen()),
+    GoRoute(path: попробую'/trainer/clients', builder: (_, __) => const ClientsListScreen()),
     GoRoute(
       path: '/trainer/clients/:clientId',
       builder: (_, state) => ClientDetailScreen(

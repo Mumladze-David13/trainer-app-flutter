@@ -64,6 +64,15 @@ class PoseOverlayPainter extends CustomPainter {
     'body': PoseLandmarkType.leftHip,
   };
 
+  // Same keys when the analysis measured the person's right side.
+  static const Map<String, PoseLandmarkType> _angleLandmarksRight = {
+    'knee': PoseLandmarkType.rightKnee,
+    'kneeRight': PoseLandmarkType.rightKnee,
+    'hip': PoseLandmarkType.rightHip,
+    'elbow': PoseLandmarkType.rightElbow,
+    'body': PoseLandmarkType.rightHip,
+  };
+
   double _translateX(double x, Size canvasSize) {
     switch (rotation) {
       case InputImageRotation.rotation90deg:
@@ -131,7 +140,9 @@ class PoseOverlayPainter extends CustomPainter {
 
     if (result != null) {
       for (final entry in result!.angles.entries) {
-        final landmarkType = _angleLandmarks[entry.key];
+        final landmarkType = result!.measuredRightSide
+            ? _angleLandmarksRight[entry.key]
+            : _angleLandmarks[entry.key];
         if (landmarkType == null) continue;
         final point = _point(landmarkType, size);
         if (point == null) continue;
